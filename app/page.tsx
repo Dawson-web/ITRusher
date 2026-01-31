@@ -511,6 +511,11 @@ export default function InterviewQuestionsPage() {
 
     const question = updatedQuestions.find(q => q.id === id);
     if (question) {
+      // 如果当前正在显示的随机题目是被操作的题目，也需要更新它
+      if (currentRandomQuestion && currentRandomQuestion.id === id) {
+        setCurrentRandomQuestion(question);
+      }
+
       toast({
         title: question.isFavorite ? "已添加到收藏" : "已从收藏中移除",
         description:
@@ -533,6 +538,11 @@ export default function InterviewQuestionsPage() {
 
     const question = updatedQuestions.find(q => q.id === id);
     if (question) {
+      // 如果当前正在显示的随机题目是被操作的题目，也需要更新它
+      if (currentRandomQuestion && currentRandomQuestion.id === id) {
+        setCurrentRandomQuestion(question);
+      }
+
       toast({
         title: question.isHidden ? "问题已隐藏" : "问题已显示",
         description:
@@ -1256,23 +1266,48 @@ export default function InterviewQuestionsPage() {
                                         针对: <span className="font-medium text-foreground">"{question.content}"</span>
                                       </DialogDescription>
                                     </div>
-                                    {aiAnalysis[question.id] && (
+                                    <div className="flex items-center gap-1 sm:gap-2">
                                       <Button
-                                        variant="outline"
+                                        variant="ghost"
                                         size="sm"
-                                        className="h-8 gap-1.5 mr-6 sm:mr-0"
-                                        onClick={() =>
-                                          copyAiAnalysis(
-                                            question.content,
-                                            aiAnalysis[question.id]
-                                          )
-                                        }
-                                        title="复制内容"
+                                        className={`h-8 px-2 sm:px-3 text-xs sm:text-sm gap-1.5 transition-colors ${question.isFavorite
+                                          ? "text-yellow-500 hover:text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/10"
+                                          : "text-muted-foreground hover:text-foreground"
+                                          }`}
+                                        onClick={() => toggleFavorite(question.id)}
+                                        title={question.isFavorite ? "取消收藏" : "加入收藏"}
                                       >
-                                        <Copy className="h-3.5 w-3.5" />
-                                        <span className="hidden sm:inline text-xs">复制</span>
+                                        {question.isFavorite ? (
+                                          <BookmarkCheck className="h-4 w-4 fill-current" />
+                                        ) : (
+                                          <Bookmark className="h-4 w-4" />
+                                        )}
+                                        <span className="hidden sm:inline">
+                                          {question.isFavorite ? "已收藏" : "收藏"}
+                                        </span>
                                       </Button>
-                                    )}
+
+                                      {aiAnalysis[question.id] && (
+                                        <>
+                                          <div className="h-4 w-px bg-border/50 hidden sm:block" />
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 px-2 sm:px-3 gap-1.5 text-muted-foreground hover:text-foreground"
+                                            onClick={() =>
+                                              copyAiAnalysis(
+                                                question.content,
+                                                aiAnalysis[question.id]
+                                              )
+                                            }
+                                            title="复制内容"
+                                          >
+                                            <Copy className="h-4 w-4" />
+                                            <span className="hidden sm:inline text-xs sm:text-sm">复制</span>
+                                          </Button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                 </DialogHeader>
                                 <div className="flex-1 overflow-y-auto p-6 scroll-smooth">
@@ -1424,40 +1459,65 @@ export default function InterviewQuestionsPage() {
                                 </Button>
                               </DialogTrigger>
                               <DialogContent
-                                className="max-w-[90vw] md:max-w-4xl lg:max-w-5xl h-[85vh] p-0 flex flex-col gap-0 outline-none overflow-hidden"
+                                className="max-w-[95vw] md:max-w-4xl h-[85vh] p-0 flex flex-col gap-0 outline-none overflow-hidden"
                                 onOpenAutoFocus={(e) => e.preventDefault()}
                               >
-                                <DialogHeader className="px-6 py-4 border-b bg-muted/10 shrink-0 pr-12">
+                                <DialogHeader className="px-6 py-4 border-b bg-background/95 backdrop-blur shrink-0 pr-12">
                                   <div className="flex items-center justify-between">
                                     <div className="space-y-1">
-                                      <DialogTitle className="flex items-center gap-2">
-                                        <Bot className="h-5 w-5 text-primary" />
+                                      <DialogTitle className="flex items-center gap-2 text-lg">
+                                        <Bot className="h-5 w-5 text-orange-500" />
                                         AI 智能解析
                                       </DialogTitle>
-                                      <DialogDescription className="line-clamp-1 text-xs sm:text-sm">
+                                      <DialogDescription className="line-clamp-1 text-xs">
                                         针对: <span className="font-medium text-foreground">"{question.content}"</span>
                                       </DialogDescription>
                                     </div>
-                                    {aiAnalysis[question.id] && (
+                                    <div className="flex items-center gap-1 sm:gap-2">
                                       <Button
-                                        variant="outline"
+                                        variant="ghost"
                                         size="sm"
-                                        className="h-8 gap-1.5 mr-6 sm:mr-0"
-                                        onClick={() =>
-                                          copyAiAnalysis(
-                                            question.content,
-                                            aiAnalysis[question.id]
-                                          )
-                                        }
-                                        title="复制内容"
+                                        className={`h-8 px-2 sm:px-3 text-xs sm:text-sm gap-1.5 transition-colors ${question.isFavorite
+                                          ? "text-yellow-500 hover:text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/10"
+                                          : "text-muted-foreground hover:text-foreground"
+                                          }`}
+                                        onClick={() => toggleFavorite(question.id)}
+                                        title={question.isFavorite ? "取消收藏" : "加入收藏"}
                                       >
-                                        <Copy className="h-3.5 w-3.5" />
-                                        <span className="hidden sm:inline text-xs">复制</span>
+                                        {question.isFavorite ? (
+                                          <BookmarkCheck className="h-4 w-4 fill-current" />
+                                        ) : (
+                                          <Bookmark className="h-4 w-4" />
+                                        )}
+                                        <span className="hidden sm:inline">
+                                          {question.isFavorite ? "已收藏" : "收藏"}
+                                        </span>
                                       </Button>
-                                    )}
+
+                                      {aiAnalysis[question.id] && (
+                                        <>
+                                          <div className="h-4 w-px bg-border/50 hidden sm:block" />
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 px-2 sm:px-3 gap-1.5 text-muted-foreground hover:text-foreground"
+                                            onClick={() =>
+                                              copyAiAnalysis(
+                                                question.content,
+                                                aiAnalysis[question.id]
+                                              )
+                                            }
+                                            title="复制内容"
+                                          >
+                                            <Copy className="h-4 w-4" />
+                                            <span className="hidden sm:inline text-xs sm:text-sm">复制</span>
+                                          </Button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                 </DialogHeader>
-                                <div className="flex-1 overflow-y-auto p-6 scroll-smooth">
+                                <div className="flex-1 overflow-y-auto p-6 pt-4 scroll-smooth">
                                   {aiAnalysis[question.id] ? (
                                     <Markdown
                                       content={aiAnalysis[question.id]}
@@ -1571,176 +1631,201 @@ export default function InterviewQuestionsPage() {
           open={randomQuestionDialogOpen}
           onOpenChange={setRandomQuestionDialogOpen}
         >
-          <DialogContent className="max-w-[95vw] sm:max-w-[700px] md:max-w-[800px] overflow-hidden p-0 gap-0">
-            <DialogHeader className="px-6 py-5 border-b bg-sidebar-accent/5">
-              <DialogTitle className="flex items-center gap-2 text-xl">
-                <Shuffle className="h-5 w-5 text-primary" />
-                随机模拟面试
-              </DialogTitle>
-              <DialogDescription className="text-sm">
-                从海量题库中为您随机抽取，模拟真实面试场景。
-              </DialogDescription>
+          <DialogContent className="max-w-[95vw] sm:max-w-[600px] md:max-w-[700px] overflow-hidden p-0 gap-0 border-0 shadow-2xl">
+            <DialogHeader className="px-6 py-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
+              <div className="flex items-center justify-between mr-6">
+                <DialogTitle className="flex items-center gap-2 text-xl font-semibold">
+                  <Shuffle className="h-5 w-5 text-primary" />
+                  随机面试题
+                </DialogTitle>
+                <DialogDescription className="hidden sm:block text-xs text-muted-foreground">
+                  模拟真实面试场景
+                </DialogDescription>
+              </div>
             </DialogHeader>
 
             {currentRandomQuestion && (
-              <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2 -mr-2 p-6">
-                <div className="flex flex-col gap-4">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
+              <div className="flex flex-col h-full bg-muted/10">
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                  {/* Meta Info & Actions */}
+                  <div className="flex flex-col gap-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="outline" className="text-xs">{currentRandomQuestion.company}</Badge>
-                        <Badge variant="secondary" className="text-xs">{currentRandomQuestion.level}</Badge>
-                        <Badge className="text-xs bg-primary/10 text-primary hover:bg-primary/20 border-0">{currentRandomQuestion.category}</Badge>
+                        <Badge variant="outline" className="text-xs font-normal bg-background">{currentRandomQuestion.company}</Badge>
+                        <Badge variant="secondary" className="text-xs font-normal">{currentRandomQuestion.level}</Badge>
+                        <Badge className="text-xs bg-primary/10 text-primary border-0 font-normal">{currentRandomQuestion.category}</Badge>
                       </div>
-                      <div className="pt-1">
-                        {renderStarRating(currentRandomQuestion.rating)}
+
+                      <div className="flex items-center gap-1">
+                        <div className="mr-2 scale-90 origin-right">
+                          {renderStarRating(currentRandomQuestion.rating)}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => toggleHidden(currentRandomQuestion.id)}
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          title={currentRandomQuestion.isHidden ? "显示问题" : "屏蔽此题"}
+                        >
+                          {currentRandomQuestion.isHidden ? (
+                            <Eye className="h-4 w-4" />
+                          ) : (
+                            <EyeOff className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => toggleFavorite(currentRandomQuestion.id)}
+                          className={`h-8 w-8 ${currentRandomQuestion.isFavorite ? "text-yellow-500 hover:text-yellow-600" : "text-muted-foreground hover:text-foreground"}`}
+                          title={currentRandomQuestion.isFavorite ? "取消收藏" : "加入收藏"}
+                        >
+                          {currentRandomQuestion.isFavorite ? (
+                            <BookmarkCheck className="h-4 w-4 fill-current" />
+                          ) : (
+                            <Bookmark className="h-4 w-4" />
+                          )}
+                        </Button>
                       </div>
                     </div>
-                    <span className="text-xs text-muted-foreground whitespace-nowrap bg-muted px-2 py-1 rounded">
-                      {currentRandomQuestion.date}
-                    </span>
-                  </div>
 
-                  <div className="p-5 border rounded-lg bg-card shadow-sm">
-                    <p className="text-lg font-medium leading-relaxed">{currentRandomQuestion.content}</p>
+                    {/* Question Content */}
+                    <Card className="border-none shadow-sm bg-background">
+                      <CardContent className="p-6">
+                        <p className="text-lg md:text-xl font-medium leading-relaxed text-foreground/90">
+                          {currentRandomQuestion.content}
+                        </p>
+                        <div className="flex justify-end mt-4">
+                          <span className="text-xs text-muted-foreground/60 font-mono">
+                            {currentRandomQuestion.date}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-3">
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button
-                        variant="default"
-                        className="w-full h-10 shadow-sm"
-                        onClick={() => getAiAnalysis(currentRandomQuestion.id)}
+                {/* Footer Action Area */}
+                <div className="p-6 bg-background border-t mt-auto">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button
+                          size="lg"
+                          className="w-full sm:flex-1 h-12 text-base font-medium shadow-sm transition-all hover:shadow-md bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 border-0"
+                          onClick={() => getAiAnalysis(currentRandomQuestion.id)}
+                        >
+                          <Bot className="h-5 w-5 mr-2" />
+                          AI 深度解析
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent
+                        className="max-w-[95vw] md:max-w-4xl h-[85vh] p-0 flex flex-col gap-0 outline-none overflow-hidden border-0"
+                        onOpenAutoFocus={(e) => e.preventDefault()}
                       >
-                        <Bot className="h-4 w-4 mr-2" />
-                        AI 深度解析
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent
-                      className="max-w-[90vw] md:max-w-4xl lg:max-w-5xl h-[85vh] p-0 flex flex-col gap-0 outline-none overflow-hidden"
-                      onOpenAutoFocus={(e) => e.preventDefault()}
-                    >
-                      <DialogHeader className="px-6 py-4 border-b bg-muted/10 shrink-0 pr-12">
-                        <div className="flex items-center justify-between">
-                          <div className="space-y-1">
-                            <DialogTitle className="flex items-center gap-2">
-                              <Bot className="h-5 w-5 text-primary" />
-                              AI 智能解析
-                            </DialogTitle>
-                            <DialogDescription className="line-clamp-1 text-xs sm:text-sm">
-                              针对: <span className="font-medium text-foreground">"{currentRandomQuestion.content}"</span>
-                            </DialogDescription>
+                        <DialogHeader className="px-6 py-4 border-b bg-background/95 backdrop-blur shrink-0 pr-12">
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-1">
+                              <DialogTitle className="flex items-center gap-2 text-lg">
+                                <Bot className="h-5 w-5 text-orange-500" />
+                                AI 智能解析
+                              </DialogTitle>
+                              <DialogDescription className="line-clamp-1 text-xs">
+                                针对: <span className="font-medium text-foreground">"{currentRandomQuestion.content}"</span>
+                              </DialogDescription>
+                            </div>
+                            <div className="flex items-center gap-1 sm:gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={`h-8 px-2 sm:px-3 text-xs sm:text-sm gap-1.5 transition-colors ${currentRandomQuestion.isFavorite
+                                  ? "text-yellow-500 hover:text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/10"
+                                  : "text-muted-foreground hover:text-foreground"
+                                  }`}
+                                onClick={() => toggleFavorite(currentRandomQuestion.id)}
+                                title={currentRandomQuestion.isFavorite ? "取消收藏" : "加入收藏"}
+                              >
+                                {currentRandomQuestion.isFavorite ? (
+                                  <BookmarkCheck className="h-4 w-4 fill-current" />
+                                ) : (
+                                  <Bookmark className="h-4 w-4" />
+                                )}
+                                <span className="hidden sm:inline">
+                                  {currentRandomQuestion.isFavorite ? "已收藏" : "收藏"}
+                                </span>
+                              </Button>
+
+                              {aiAnalysis[currentRandomQuestion.id] && (
+                                <>
+                                  <div className="h-4 w-px bg-border/50 hidden sm:block" />
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 px-2 sm:px-3 gap-1.5 text-muted-foreground hover:text-foreground"
+                                    onClick={() =>
+                                      copyAiAnalysis(
+                                        currentRandomQuestion.content,
+                                        aiAnalysis[currentRandomQuestion.id]
+                                      )
+                                    }
+                                  >
+                                    <Copy className="h-4 w-4" />
+                                    <span className="hidden sm:inline text-xs sm:text-sm">复制</span>
+                                  </Button>
+                                </>
+                              )}
+                            </div>
                           </div>
-                          {aiAnalysis[currentRandomQuestion.id] && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-8 gap-1.5 mr-6 sm:mr-0"
-                              onClick={() =>
-                                copyAiAnalysis(
-                                  currentRandomQuestion.content,
-                                  aiAnalysis[currentRandomQuestion.id]
-                                )
-                              }
-                              title="复制内容"
-                            >
-                              <Copy className="h-3.5 w-3.5" />
-                              <span className="hidden sm:inline text-xs">复制</span>
-                            </Button>
+                        </DialogHeader>
+                        <div className="flex-1 overflow-y-auto p-6 pt-4 md:p-8 md:pt-6 scroll-smooth">
+                          {aiAnalysis[currentRandomQuestion.id] ? (
+                            <div className="max-w-4xl mx-auto">
+                              <Markdown
+                                content={aiAnalysis[currentRandomQuestion.id]}
+                                className={
+                                  aiModelSettings.streaming &&
+                                    isAnalyzing[currentRandomQuestion.id]
+                                    ? "streaming-cursor"
+                                    : ""
+                                }
+                              />
+                            </div>
+                          ) : isAnalyzing[currentRandomQuestion.id] ? (
+                            <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
+                              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+                              <span className="text-sm font-medium animate-pulse">正在生成深度解析...</span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center h-full gap-6 text-muted-foreground/60 py-12">
+                              <div className="bg-orange-100 dark:bg-orange-900/20 p-8 rounded-full">
+                                <Bot className="h-16 w-16 text-orange-500/80" />
+                              </div>
+                              <div className="text-center space-y-2 max-w-sm">
+                                <p className="text-xl font-bold text-foreground">准备就绪</p>
+                                <p className="text-sm">点击下方按钮，AI 导师将为您深入剖析这道面试题</p>
+                              </div>
+                              <Button
+                                onClick={() =>
+                                  getAiAnalysis(currentRandomQuestion.id)
+                                }
+                                size="lg"
+                                className="mt-2 min-w-[160px] bg-orange-500 hover:bg-orange-600 text-white"
+                              >
+                                <Bot className="h-5 w-5 mr-2" />
+                                开始分析
+                              </Button>
+                            </div>
                           )}
                         </div>
-                      </DialogHeader>
-                      <div className="flex-1 overflow-y-auto p-6 scroll-smooth">
-                        {aiAnalysis[currentRandomQuestion.id] ? (
-                          <Markdown
-                            content={aiAnalysis[currentRandomQuestion.id]}
-                            className={
-                              aiModelSettings.streaming &&
-                                isAnalyzing[currentRandomQuestion.id]
-                                ? "streaming-cursor"
-                                : ""
-                            }
-                          />
-                        ) : isAnalyzing[currentRandomQuestion.id] ? (
-                          <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
-                            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-                            <span className="text-sm font-medium animate-pulse">正在生成深度解析...</span>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground/60 py-12">
-                            <div className="bg-muted/50 p-6 rounded-full">
-                              <Bot className="h-12 w-12" />
-                            </div>
-                            <div className="text-center space-y-2">
-                              <p className="text-lg font-medium text-foreground">准备就绪</p>
-                              <p>点击下方按钮，AI 将为您深入剖析这道面试题</p>
-                            </div>
-                            <Button
-                              onClick={() =>
-                                getAiAnalysis(currentRandomQuestion.id)
-                              }
-                              size="lg"
-                              variant="default"
-                              className="mt-4 gap-2"
-                            >
-                              <Bot className="h-5 w-5" />
-                              开始分析
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </DialogContent>
-                  </Dialog>
+                      </DialogContent>
+                    </Dialog>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <Button
-                      variant="outline"
-                      onClick={() => toggleHidden(currentRandomQuestion.id)}
-                      className="flex items-center justify-center gap-2 h-10"
-                    >
-                      {currentRandomQuestion.isHidden ? (
-                        <>
-                          <Eye className="h-4 w-4" />
-                          已屏蔽
-                        </>
-                      ) : (
-                        <>
-                          <EyeOff className="h-4 w-4" />
-                          屏蔽此题
-                        </>
-                      )}
-                    </Button>
-
-                    <Button
-                      variant={
-                        currentRandomQuestion.isFavorite ? "secondary" : "outline"
-                      }
-                      onClick={() => toggleFavorite(currentRandomQuestion.id)}
-                      className="flex items-center justify-center gap-2 h-10"
-                    >
-                      {currentRandomQuestion.isFavorite ? (
-                        <>
-                          <BookmarkCheck className="h-4 w-4 text-primary" />
-                          已收藏
-                        </>
-                      ) : (
-                        <>
-                          <Bookmark className="h-4 w-4" />
-                          加入收藏
-                        </>
-                      )}
-                    </Button>
-                  </div>
-
-                  <div className="pt-2">
                     <Button
                       onClick={getNextRandomQuestion}
-                      className="w-full flex items-center justify-center gap-2 h-11 text-base"
+                      className="w-full sm:w-auto h-12 px-6 text-base"
                       variant="secondary"
                     >
-                      <Shuffle className="h-4 w-4" />
+                      <Shuffle className="h-4 w-4 mr-2" />
                       换一题
                     </Button>
                   </div>
