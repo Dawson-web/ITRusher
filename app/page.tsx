@@ -50,6 +50,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useToast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 import { useMobile } from "@/hooks/use-mobile";
@@ -814,872 +820,939 @@ export default function InterviewQuestionsPage() {
   };
 
   return (
-    <div className="container mx-auto py-4 px-4 sm:px-6">
-      <div className="flex flex-col space-y-4">
-        {showGithubBanner && (
-          <div className="relative bg-primary/10 border border-primary/20 rounded-lg p-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Github className="h-5 w-5 text-primary" />
-              <p>
-                本项目已开源！访问{" "}
-                <a
-                  href="https://github.com/ni00/FERusher"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary font-medium hover:underline"
-                >
-                  Github 仓库
-                </a>{" "}
-                查看源码，如果觉得有用请给个 Star ⭐
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={closeGithubBanner}
-              className="h-8 w-8"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
-
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <h1 className="text-2xl font-bold">FERusher | 切图仔，冲冲冲！</h1>
-
-          <div className="flex flex-wrap gap-2">
-            <ThemeToggle />
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={getRandomQuestion}
-              className="flex items-center gap-1"
-            >
-              <Shuffle className="h-4 w-4" />
-              <span className="hidden sm:inline">随机题目</span>
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={exportFavorites}
-              className="flex items-center gap-1"
-            >
-              <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">导出收藏</span>
-            </Button>
-
-            <Dialog open={aiSettingsOpen} onOpenChange={setAiSettingsOpen}>
-              <DialogTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-1"
-                  onClick={() => setAiSettingsOpen(true)}
-                >
-                  <Settings className="h-4 w-4" />
-                  <span className="hidden sm:inline">AI设置</span>
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-3xl">
-                <DialogHeader className="px-1">
-                  <DialogTitle>AI模型设置</DialogTitle>
-                  <DialogDescription>
-                    配置用于AI解析的大语言模型API设置
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="max-h-[calc(80vh-120px)] overflow-y-auto px-1">
-                  <form
-                    onSubmit={e => {
-                      e.preventDefault();
-                      const formData = new FormData(e.currentTarget);
-                      const settings: AiSettings = {
-                        apiKey: formData.get("apiKey") as string,
-                        model: formData.get("model") as string,
-                        baseUrl: formData.get("baseUrl") as string,
-                        prompt: formData.get("prompt") as string,
-                        streaming: formData.get("streaming") === "on",
-                      };
-                      saveAiModelSettings(settings);
-                    }}
-                    className="space-y-4 mt-4"
+    <TooltipProvider>
+      <div className="container mx-auto py-4 px-4 sm:px-6">
+        <div className="flex flex-col space-y-4">
+          {showGithubBanner && (
+            <div className="relative bg-primary/10 border border-primary/20 rounded-lg p-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Github className="h-5 w-5 text-primary" />
+                <p>
+                  本项目已开源！访问{" "}
+                  <a
+                    href="https://github.com/ni00/FERusher"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-primary font-medium hover:underline"
                   >
-                    <div className="space-y-2">
-                      <Label htmlFor="apiKey">API密钥</Label>
-                      <Input
-                        id="apiKey"
-                        name="apiKey"
-                        type="password"
-                        placeholder="输入你的API密钥"
-                        defaultValue={aiModelSettings.apiKey}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        你的API密钥将只存储在本地浏览器中，不会发送到服务器
-                      </p>
-                    </div>
+                    Github 仓库
+                  </a>{" "}
+                  查看源码，如果觉得有用请给个 Star ⭐
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={closeGithubBanner}
+                className="h-8 w-8"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
 
-                    <div className="space-y-2">
-                      <Label htmlFor="model">模型</Label>
-                      <Input
-                        id="model"
-                        name="model"
-                        placeholder="输入模型名称，如 gpt-4、glm-4 等"
-                        defaultValue={aiModelSettings.model}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        输入你想使用的模型名称，例如：gpt-4、glm-4、claude-3-opus
-                        等
-                      </p>
-                    </div>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <h1 className="text-2xl font-bold">FERusher | 切图仔，冲冲冲！</h1>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="baseUrl">API基础URL</Label>
-                      <Input
-                        id="baseUrl"
-                        name="baseUrl"
-                        placeholder="API基础URL"
-                        defaultValue={aiModelSettings.baseUrl}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        如果使用代理或其他API提供商，可以修改基础URL
-                      </p>
-                    </div>
+            <div className="flex flex-wrap gap-2">
+              <ThemeToggle />
 
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <Label htmlFor="prompt">分析提示词</Label>
-                        <Select
-                          onValueChange={(val) => {
-                            if (val && PROMPT_TEMPLATES[val as keyof typeof PROMPT_TEMPLATES]) {
-                              setPromptValue(PROMPT_TEMPLATES[val as keyof typeof PROMPT_TEMPLATES].value);
-                            }
-                          }}
-                        >
-                          <SelectTrigger className="h-8 w-[200px] text-xs">
-                            <SelectValue placeholder="选择预设提示词模板" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Object.entries(PROMPT_TEMPLATES).map(([key, template]) => (
-                              <SelectItem key={key} value={key} className="text-xs">
-                                {template.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={getRandomQuestion}
+                className="flex items-center gap-1"
+              >
+                <Shuffle className="h-4 w-4" />
+                <span className="hidden sm:inline">随机题目</span>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportFavorites}
+                className="flex items-center gap-1"
+              >
+                <Download className="h-4 w-4" />
+                <span className="hidden sm:inline">导出收藏</span>
+              </Button>
+
+              <Dialog open={aiSettingsOpen} onOpenChange={setAiSettingsOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-1"
+                    onClick={() => setAiSettingsOpen(true)}
+                  >
+                    <Settings className="h-4 w-4" />
+                    <span className="hidden sm:inline">AI 设置</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent
+                  className="max-w-2xl sm:max-w-3xl overflow-hidden p-0 gap-0 outline-none"
+                  onOpenAutoFocus={(e) => e.preventDefault()}
+                >
+                  <DialogHeader className="px-6 py-4 border-b shrink-0 pr-12">
+                    <DialogTitle>配置 AI 模型</DialogTitle>
+                    <DialogDescription>
+                      自定义连接的大语言模型 (LLM) 参数及提示词设置
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="max-h-[70vh] overflow-y-auto p-6 scroll-smooth">
+                    <form
+                      onSubmit={e => {
+                        e.preventDefault();
+                        const formData = new FormData(e.currentTarget);
+                        const settings: AiSettings = {
+                          apiKey: formData.get("apiKey") as string,
+                          model: formData.get("model") as string,
+                          baseUrl: formData.get("baseUrl") as string,
+                          prompt: formData.get("prompt") as string,
+                          streaming: formData.get("streaming") === "on",
+                        };
+                        saveAiModelSettings(settings);
+                      }}
+                      className="space-y-6"
+                    >
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <Label htmlFor="model">模型名称 (Model)</Label>
+                          <Input
+                            id="model"
+                            name="model"
+                            placeholder="例如: gpt-4, claude-3-5-sonnet"
+                            defaultValue={aiModelSettings.model}
+                          />
+                          <p className="text-[0.8rem] text-muted-foreground">
+                            请输入兼容 OpenAI 接口的模型名称
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="baseUrl">API 代理地址 (Base URL)</Label>
+                          <Input
+                            id="baseUrl"
+                            name="baseUrl"
+                            placeholder="https://api.openai.com/v1"
+                            defaultValue={aiModelSettings.baseUrl}
+                          />
+                          <p className="text-[0.8rem] text-muted-foreground">
+                            默认使用官方地址，可根据需要替换为代理地址
+                          </p>
+                        </div>
                       </div>
-                      <textarea
-                        id="prompt"
-                        name="prompt"
-                        placeholder="自定义提示词模板"
-                        value={promptValue}
-                        onChange={(e) => setPromptValue(e.target.value)}
-                        className="flex min-h-[180px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+
+                      <div className="space-y-2">
+                        <Label htmlFor="apiKey">API Key</Label>
+                        <Input
+                          id="apiKey"
+                          name="apiKey"
+                          type="password"
+                          placeholder="sk-..."
+                          defaultValue={aiModelSettings.apiKey}
+                        />
+                        <p className="text-[0.8rem] text-muted-foreground">
+                          您的 API Key 仅存储在本地浏览器中，不会发送至我们的服务器。
+                        </p>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <Label htmlFor="prompt">系统提示词 (System Prompt)</Label>
+                          <Select
+                            onValueChange={(val) => {
+                              if (val && PROMPT_TEMPLATES[val as keyof typeof PROMPT_TEMPLATES]) {
+                                setPromptValue(PROMPT_TEMPLATES[val as keyof typeof PROMPT_TEMPLATES].value);
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="h-8 w-[180px] text-xs">
+                              <SelectValue placeholder="加载预设模板" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(PROMPT_TEMPLATES).map(([key, template]) => (
+                                <SelectItem key={key} value={key} className="text-xs">
+                                  {template.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <textarea
+                          id="prompt"
+                          name="prompt"
+                          placeholder="定义 AI 在分析面试题时的角色和行为..."
+                          value={promptValue}
+                          onChange={(e) => setPromptValue(e.target.value)}
+                          className="flex min-h-[200px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 font-mono resize-y"
+                        />
+                        <p className="text-[0.8rem] text-muted-foreground">
+                          使用 <code className="bg-muted px-1 py-0.5 rounded text-xs">{"{question}"}</code> 作为题目内容的占位符。
+                        </p>
+                      </div>
+
+                      <div className="flex items-center space-x-2 bg-muted/30 p-3 rounded-lg border">
+                        <Checkbox
+                          id="streaming"
+                          name="streaming"
+                          checked={aiModelSettings.streaming}
+                          onCheckedChange={checked => {
+                            setAiModelSettings({
+                              ...aiModelSettings,
+                              streaming: checked as boolean,
+                            });
+                          }}
+                        />
+                        <div className="grid gap-1.5 leading-none">
+                          <label
+                            htmlFor="streaming"
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                          >
+                            开启流式响应 (Stream)
+                          </label>
+                          <p className="text-[0.8rem] text-muted-foreground">
+                            实时逐字显示分析结果，提升交互体验。
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end pt-2">
+                        <Button type="submit" className="w-full sm:w-auto">保存配置</Button>
+                      </div>
+                    </form>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-1"
+                  >
+                    <Filter className="h-4 w-4" />
+                    <span className="hidden sm:inline">筛选</span>
+                  </Button>
+                </SheetTrigger>
+                <SheetContent
+                  side={isMobile ? "bottom" : "right"}
+                  className={isMobile ? "h-[80vh]" : ""}
+                >
+                  <SheetHeader>
+                    <SheetTitle>筛选条件</SheetTitle>
+                    <SheetDescription>
+                      设置筛选条件以找到你需要的面试题
+                    </SheetDescription>
+                  </SheetHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="search">搜索</Label>
+                      <Input
+                        id="search"
+                        placeholder="搜索问题或公司..."
+                        value={searchTerm}
+                        onChange={e => setSearchTermAndSave(e.target.value)}
                       />
-                      <p className="text-xs text-muted-foreground">
-                        使用 {"{question}"} 作为问题内容的占位符
-                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="company">公司</Label>
+                      <Select
+                        value={selectedCompany}
+                        onValueChange={setSelectedCompanyAndSave}
+                      >
+                        <SelectTrigger id="company">
+                          <SelectValue placeholder="选择公司" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {companies.map(company => (
+                            <SelectItem key={company} value={company}>
+                              {company}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="category">分类</Label>
+                      <Select
+                        value={selectedCategory}
+                        onValueChange={setSelectedCategoryAndSave}
+                      >
+                        <SelectTrigger id="category">
+                          <SelectValue placeholder="选择分类" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categories.map(category => (
+                            <SelectItem key={category} value={category}>
+                              {category}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="level">面试轮次</Label>
+                      <Select
+                        value={selectedLevel}
+                        onValueChange={setSelectedLevelAndSave}
+                      >
+                        <SelectTrigger id="level">
+                          <SelectValue placeholder="选择轮次" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {levels.map(level => (
+                            <SelectItem key={level} value={level}>
+                              {level}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="rating">最低难度星级</Label>
+                      <Select
+                        value={selectedRating.toString()}
+                        onValueChange={value =>
+                          setSelectedRatingAndSave(Number.parseInt(value))
+                        }
+                      >
+                        <SelectTrigger id="rating">
+                          <SelectValue placeholder="选择最低星级" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">全部</SelectItem>
+                          <SelectItem value="1">⭐ 及以上</SelectItem>
+                          <SelectItem value="2">⭐⭐ 及以上</SelectItem>
+                          <SelectItem value="3">⭐⭐⭐ 及以上</SelectItem>
+                          <SelectItem value="4">⭐⭐⭐⭐ 及以上</SelectItem>
+                          <SelectItem value="5">⭐⭐⭐⭐⭐</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     <div className="flex items-center space-x-2">
                       <Checkbox
-                        id="streaming"
-                        name="streaming"
-                        checked={aiModelSettings.streaming}
-                        onCheckedChange={checked => {
-                          setAiModelSettings({
-                            ...aiModelSettings,
-                            streaming: checked as boolean,
-                          });
-                        }}
+                        id="favorites"
+                        checked={showOnlyFavorites}
+                        onCheckedChange={checked =>
+                          setShowOnlyFavoritesAndSave(checked as boolean)
+                        }
                       />
                       <label
-                        htmlFor="streaming"
+                        htmlFor="favorites"
                         className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                       >
-                        启用流式传输（打字机效果）
+                        只显示收藏
                       </label>
                     </div>
-                    <p className="text-xs text-muted-foreground ml-6">
-                      启用后，AI分析结果将实时逐字显示，提供更好的交互体验
-                    </p>
 
-                    <div className="flex justify-end gap-2">
-                      <Button type="submit">保存设置</Button>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="hidden"
+                        checked={showHidden}
+                        onCheckedChange={checked =>
+                          setShowHiddenAndSave(checked as boolean)
+                        }
+                      />
+                      <label
+                        htmlFor="hidden"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        显示隐藏的问题
+                      </label>
                     </div>
-                  </form>
-                </div>
-              </DialogContent>
-            </Dialog>
 
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-1"
-                >
-                  <Filter className="h-4 w-4" />
-                  <span className="hidden sm:inline">筛选</span>
-                </Button>
-              </SheetTrigger>
-              <SheetContent
-                side={isMobile ? "bottom" : "right"}
-                className={isMobile ? "h-[80vh]" : ""}
-              >
-                <SheetHeader>
-                  <SheetTitle>筛选条件</SheetTitle>
-                  <SheetDescription>
-                    设置筛选条件以找到你需要的面试题
-                  </SheetDescription>
-                </SheetHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="search">搜索</Label>
-                    <Input
-                      id="search"
-                      placeholder="搜索问题或公司..."
-                      value={searchTerm}
-                      onChange={e => setSearchTermAndSave(e.target.value)}
-                    />
+                    <Button onClick={resetFilters}>重置筛选条件</Button>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="company">公司</Label>
-                    <Select
-                      value={selectedCompany}
-                      onValueChange={setSelectedCompanyAndSave}
-                    >
-                      <SelectTrigger id="company">
-                        <SelectValue placeholder="选择公司" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {companies.map(company => (
-                          <SelectItem key={company} value={company}>
-                            {company}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="category">分类</Label>
-                    <Select
-                      value={selectedCategory}
-                      onValueChange={setSelectedCategoryAndSave}
-                    >
-                      <SelectTrigger id="category">
-                        <SelectValue placeholder="选择分类" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map(category => (
-                          <SelectItem key={category} value={category}>
-                            {category}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="level">面试轮次</Label>
-                    <Select
-                      value={selectedLevel}
-                      onValueChange={setSelectedLevelAndSave}
-                    >
-                      <SelectTrigger id="level">
-                        <SelectValue placeholder="选择轮次" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {levels.map(level => (
-                          <SelectItem key={level} value={level}>
-                            {level}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="rating">最低难度星级</Label>
-                    <Select
-                      value={selectedRating.toString()}
-                      onValueChange={value =>
-                        setSelectedRatingAndSave(Number.parseInt(value))
-                      }
-                    >
-                      <SelectTrigger id="rating">
-                        <SelectValue placeholder="选择最低星级" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">全部</SelectItem>
-                        <SelectItem value="1">⭐ 及以上</SelectItem>
-                        <SelectItem value="2">⭐⭐ 及以上</SelectItem>
-                        <SelectItem value="3">⭐⭐⭐ 及以上</SelectItem>
-                        <SelectItem value="4">⭐⭐⭐⭐ 及以上</SelectItem>
-                        <SelectItem value="5">⭐⭐⭐⭐⭐</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="favorites"
-                      checked={showOnlyFavorites}
-                      onCheckedChange={checked =>
-                        setShowOnlyFavoritesAndSave(checked as boolean)
-                      }
-                    />
-                    <label
-                      htmlFor="favorites"
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                      只显示收藏
-                    </label>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="hidden"
-                      checked={showHidden}
-                      onCheckedChange={checked =>
-                        setShowHiddenAndSave(checked as boolean)
-                      }
-                    />
-                    <label
-                      htmlFor="hidden"
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                      显示隐藏的问题
-                    </label>
-                  </div>
-
-                  <Button onClick={resetFilters}>重置筛选条件</Button>
-                </div>
-              </SheetContent>
-            </Sheet>
-          </div>
-        </div>
-
-        <div className="w-full">
-          <div className="relative mb-4">
-            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-              <Search className="h-4 w-4 text-muted-foreground" />
+                </SheetContent>
+              </Sheet>
             </div>
-            <Input
-              placeholder="搜索问题或公司..."
-              value={searchTerm}
-              onChange={e => setSearchTermAndSave(e.target.value)}
-              className="pl-10 w-full"
-            />
           </div>
 
-          <Tabs
-            defaultValue="all"
-            value={activeTab}
-            onValueChange={setActiveTabAndSave}
-          >
-            <TabsList className="mb-4">
-              <TabsTrigger value="all">全部问题</TabsTrigger>
-              <TabsTrigger value="favorites">我的收藏</TabsTrigger>
-            </TabsList>
+          <div className="w-full">
+            <div className="relative mb-4">
+              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <Search className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <Input
+                placeholder="搜索问题或公司..."
+                value={searchTerm}
+                onChange={e => setSearchTermAndSave(e.target.value)}
+                className="pl-10 w-full"
+              />
+            </div>
 
-            <TabsContent value="all" className="mt-0">
-              {filteredQuestions.length > 0 ? (
-                <div className="space-y-4">
-                  {filteredQuestions.map(question => (
-                    <Card
-                      key={question.id}
-                      id={`question-${question.id}`}
-                      className={`transition-all duration-300 ${question.isHidden ? "opacity-60" : ""}`}
-                    >
-                      <CardHeader className="p-4 pb-2 flex flex-row items-start justify-between">
-                        <div className="space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-medium text-sm">
-                              {question.company}
-                            </span>
-                            <Badge variant="outline">{question.level}</Badge>
-                            <Badge variant="secondary">
-                              {question.category}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {question.date}
-                            </span>
+            <Tabs
+              defaultValue="all"
+              value={activeTab}
+              onValueChange={setActiveTabAndSave}
+            >
+              <TabsList className="mb-4">
+                <TabsTrigger value="all">全部问题</TabsTrigger>
+                <TabsTrigger value="favorites">我的收藏</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="all" className="mt-0">
+                {filteredQuestions.length > 0 ? (
+                  <div className="space-y-4">
+                    {filteredQuestions.map(question => (
+                      <Card
+                        key={question.id}
+                        id={`question-${question.id}`}
+                        className={`transition-all duration-300 ${question.isHidden ? "opacity-60" : ""}`}
+                      >
+                        <CardHeader className="p-4 pb-2 flex flex-row items-start justify-between">
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium text-sm">
+                                {question.company}
+                              </span>
+                              <Badge variant="outline">{question.level}</Badge>
+                              <Badge variant="secondary">
+                                {question.category}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                {question.date}
+                              </span>
+                            </div>
+                            {renderStarRating(question.rating)}
                           </div>
-                          {renderStarRating(question.rating)}
-                        </div>
 
-                        <div className="flex items-center gap-1">
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                className="h-8 px-2 text-xs sm:text-sm flex items-center gap-1"
-                                onClick={() => getAiAnalysis(question.id)}
-                                title="AI分析"
-                              >
-                                <Bot className="h-4 w-4" />
-                                <span className="hidden sm:inline">AI分析</span>
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <DialogTitle>AI 解析</DialogTitle>
-                                    <DialogDescription>
-                                      针对"{question.content}"
-                                    </DialogDescription>
-                                  </div>
-                                  {aiAnalysis[question.id] && (
+                          <div className="flex items-center gap-1">
+                            <Dialog>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <DialogTrigger asChild>
                                     <Button
                                       variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8 rounded-full"
-                                      onClick={() =>
-                                        copyAiAnalysis(
-                                          question.content,
-                                          aiAnalysis[question.id]
-                                        )
-                                      }
-                                      title="复制内容"
-                                    >
-                                      <Copy className="h-4 w-4" />
-                                    </Button>
-                                  )}
-                                </div>
-                              </DialogHeader>
-                              <div className="max-h-[calc(80vh-120px)] overflow-y-auto pr-1 mt-4">
-                                {aiAnalysis[question.id] ? (
-                                  <Markdown
-                                    content={aiAnalysis[question.id]}
-                                    className={
-                                      aiModelSettings.streaming &&
-                                        isAnalyzing[question.id]
-                                        ? "animate-pulse-caret"
-                                        : ""
-                                    }
-                                  />
-                                ) : isAnalyzing[question.id] ? (
-                                  <div className="flex items-center justify-center p-4">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                                    <span className="ml-2">
-                                      正在生成AI解析...
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <div className="text-center p-4">
-                                    <p>点击"分析"按钮开始生成AI解析</p>
-                                    <Button
+                                      className="h-8 px-2 text-xs sm:text-sm flex items-center gap-1"
                                       onClick={() => getAiAnalysis(question.id)}
-                                      className="mt-2"
                                     >
-                                      <Bot className="h-4 w-4 mr-2" />
-                                      分析
+                                      <Bot className="h-4 w-4" />
+                                      <span className="hidden sm:inline">AI 解析</span>
                                     </Button>
-                                  </div>
-                                )}
-                              </div>
-                            </DialogContent>
-                          </Dialog>
-
-                          <Button
-                            variant="ghost"
-                            onClick={() => toggleFavorite(question.id)}
-                            className="h-8 px-2 text-xs sm:text-sm flex items-center gap-1"
-                            title="收藏"
-                          >
-                            {question.isFavorite ? (
-                              <BookmarkCheck className="h-4 w-4 text-primary" />
-                            ) : (
-                              <Bookmark className="h-4 w-4" />
-                            )}
-                            <span className="hidden sm:inline">
-                              {question.isFavorite ? "已收藏" : "收藏"}
-                            </span>
-                          </Button>
-
-                          <Button
-                            variant="ghost"
-                            onClick={() => toggleHidden(question.id)}
-                            className="h-8 px-2 text-xs sm:text-sm flex items-center gap-1"
-                            title={question.isHidden ? "显示" : "隐藏"}
-                          >
-                            {question.isHidden ? (
-                              <Eye className="h-4 w-4" />
-                            ) : (
-                              <EyeOff className="h-4 w-4" />
-                            )}
-                            <span className="hidden sm:inline">
-                              {question.isHidden ? "显示" : "隐藏"}
-                            </span>
-                          </Button>
-                        </div>
-                      </CardHeader>
-
-                      <CardContent className="p-4 pt-2">
-                        <p className="text-base">{question.content}</p>
-                      </CardContent>
-                    </Card>
-                  ))}
-
-                  {renderPagination()}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground">
-                    没有找到符合条件的问题
-                  </p>
-                  <Button
-                    variant="outline"
-                    onClick={resetFilters}
-                    className="mt-4"
-                  >
-                    重置筛选条件
-                  </Button>
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="favorites" className="mt-0">
-              {filteredQuestions.length > 0 ? (
-                <div className="space-y-4">
-                  {filteredQuestions.map(question => (
-                    <Card
-                      key={question.id}
-                      id={`question-${question.id}`}
-                      className={`transition-all duration-300 ${question.isHidden ? "opacity-60" : ""}`}
-                    >
-                      <CardHeader className="p-4 pb-2 flex flex-row items-start justify-between">
-                        <div className="space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-medium text-sm">
-                              {question.company}
-                            </span>
-                            <Badge variant="outline">{question.level}</Badge>
-                            <Badge variant="secondary">
-                              {question.category}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {question.date}
-                            </span>
-                          </div>
-                          {renderStarRating(question.rating)}
-                        </div>
-
-                        <div className="flex items-center gap-1">
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                className="h-8 px-2 text-xs sm:text-sm flex items-center gap-1"
-                                onClick={() => getAiAnalysis(question.id)}
-                                title="AI分析"
+                                  </DialogTrigger>
+                                </TooltipTrigger>
+                                <TooltipContent>AI 智能解析</TooltipContent>
+                              </Tooltip>
+                              <DialogContent
+                                className="max-w-[90vw] md:max-w-4xl lg:max-w-5xl h-[85vh] p-0 flex flex-col gap-0 outline-none overflow-hidden"
+                                onOpenAutoFocus={(e) => e.preventDefault()}
                               >
-                                <Bot className="h-4 w-4" />
-                                <span className="hidden sm:inline">AI分析</span>
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <DialogTitle>AI 解析</DialogTitle>
-                                    <DialogDescription>
-                                      针对"{question.content}"
-                                    </DialogDescription>
+                                <DialogHeader className="px-6 py-4 border-b bg-muted/10 shrink-0 pr-12">
+                                  <div className="flex items-center justify-between">
+                                    <div className="space-y-1">
+                                      <DialogTitle className="flex items-center gap-2">
+                                        <Bot className="h-5 w-5 text-primary" />
+                                        AI 智能解析
+                                      </DialogTitle>
+                                      <DialogDescription className="line-clamp-1 text-xs sm:text-sm">
+                                        针对: <span className="font-medium text-foreground">"{question.content}"</span>
+                                      </DialogDescription>
+                                    </div>
+                                    {aiAnalysis[question.id] && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 gap-1.5 mr-6 sm:mr-0"
+                                        onClick={() =>
+                                          copyAiAnalysis(
+                                            question.content,
+                                            aiAnalysis[question.id]
+                                          )
+                                        }
+                                        title="复制内容"
+                                      >
+                                        <Copy className="h-3.5 w-3.5" />
+                                        <span className="hidden sm:inline text-xs">复制</span>
+                                      </Button>
+                                    )}
                                   </div>
-                                  {aiAnalysis[question.id] && (
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8 rounded-full"
-                                      onClick={() =>
-                                        copyAiAnalysis(
-                                          question.content,
-                                          aiAnalysis[question.id]
-                                        )
+                                </DialogHeader>
+                                <div className="flex-1 overflow-y-auto p-6 scroll-smooth">
+                                  {aiAnalysis[question.id] ? (
+                                    <Markdown
+                                      content={aiAnalysis[question.id]}
+                                      className={
+                                        aiModelSettings.streaming &&
+                                          isAnalyzing[question.id]
+                                          ? "streaming-cursor"
+                                          : ""
                                       }
-                                      title="复制内容"
-                                    >
-                                      <Copy className="h-4 w-4" />
-                                    </Button>
+                                    />
+                                  ) : isAnalyzing[question.id] ? (
+                                    <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
+                                      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
+                                      <span className="text-sm font-medium animate-pulse">正在生成深度解析...</span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground/60 py-12">
+                                      <div className="bg-muted/50 p-6 rounded-full">
+                                        <Bot className="h-12 w-12" />
+                                      </div>
+                                      <div className="text-center space-y-2">
+                                        <p className="text-lg font-medium text-foreground">准备就绪</p>
+                                        <p>点击下方按钮，AI 将为您深入剖析这道面试题</p>
+                                      </div>
+                                      <Button
+                                        onClick={() => getAiAnalysis(question.id)}
+                                        size="lg"
+                                        className="mt-4 gap-2"
+                                      >
+                                        <Bot className="h-5 w-5" />
+                                        开始分析
+                                      </Button>
+                                    </div>
                                   )}
                                 </div>
-                              </DialogHeader>
-                              <div className="max-h-[calc(80vh-120px)] overflow-y-auto pr-1 mt-4">
-                                {aiAnalysis[question.id] ? (
-                                  <Markdown
-                                    content={aiAnalysis[question.id]}
-                                    className={
-                                      aiModelSettings.streaming &&
-                                        isAnalyzing[question.id]
-                                        ? "animate-pulse-caret"
-                                        : ""
-                                    }
-                                  />
-                                ) : isAnalyzing[question.id] ? (
-                                  <div className="flex items-center justify-center p-4">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                                    <span className="ml-2">
-                                      正在生成AI解析...
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <div className="text-center p-4">
-                                    <p>点击"分析"按钮开始生成AI解析</p>
-                                    <Button
-                                      onClick={() => getAiAnalysis(question.id)}
-                                      className="mt-2"
-                                    >
-                                      <Bot className="h-4 w-4 mr-2" />
-                                      分析
-                                    </Button>
-                                  </div>
-                                )}
-                              </div>
-                            </DialogContent>
-                          </Dialog>
+                              </DialogContent>
+                            </Dialog>
 
-                          <Button
-                            variant="ghost"
-                            onClick={() => toggleFavorite(question.id)}
-                            className="h-8 px-2 text-xs sm:text-sm flex items-center gap-1"
-                            title="收藏"
-                          >
-                            {question.isFavorite ? (
-                              <BookmarkCheck className="h-4 w-4 text-primary" />
-                            ) : (
-                              <Bookmark className="h-4 w-4" />
-                            )}
-                            <span className="hidden sm:inline">
-                              {question.isFavorite ? "已收藏" : "收藏"}
-                            </span>
-                          </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  onClick={() => toggleFavorite(question.id)}
+                                  className="h-8 px-2 text-xs sm:text-sm flex items-center gap-1"
+                                >
+                                  {question.isFavorite ? (
+                                    <BookmarkCheck className="h-4 w-4 text-primary" />
+                                  ) : (
+                                    <Bookmark className="h-4 w-4" />
+                                  )}
+                                  <span className="hidden sm:inline">
+                                    {question.isFavorite ? "已收藏" : "收藏"}
+                                  </span>
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {question.isFavorite ? "取消收藏" : "加入收藏"}
+                              </TooltipContent>
+                            </Tooltip>
 
-                          <Button
-                            variant="ghost"
-                            onClick={() => toggleHidden(question.id)}
-                            className="h-8 px-2 text-xs sm:text-sm flex items-center gap-1"
-                            title={question.isHidden ? "显示" : "隐藏"}
-                          >
-                            {question.isHidden ? (
-                              <Eye className="h-4 w-4" />
-                            ) : (
-                              <EyeOff className="h-4 w-4" />
-                            )}
-                            <span className="hidden sm:inline">
-                              {question.isHidden ? "显示" : "隐藏"}
-                            </span>
-                          </Button>
-                        </div>
-                      </CardHeader>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  onClick={() => toggleHidden(question.id)}
+                                  className="h-8 px-2 text-xs sm:text-sm flex items-center gap-1"
+                                >
+                                  {question.isHidden ? (
+                                    <Eye className="h-4 w-4" />
+                                  ) : (
+                                    <EyeOff className="h-4 w-4" />
+                                  )}
+                                  <span className="hidden sm:inline">
+                                    {question.isHidden ? "显示" : "隐藏"}
+                                  </span>
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {question.isHidden ? "显示题目" : "隐藏题目"}
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </CardHeader>
 
-                      <CardContent className="p-4 pt-2">
-                        <p className="text-base">{question.content}</p>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        <CardContent className="p-4 pt-2">
+                          <p className="text-base">{question.content}</p>
+                        </CardContent>
+                      </Card>
+                    ))}
 
-                  {renderPagination()}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground">没有收藏的问题</p>
-                  <Button
-                    variant="outline"
-                    onClick={() => setActiveTab("all")}
-                    className="mt-4"
-                  >
-                    浏览所有问题
-                  </Button>
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
-        </div>
-      </div>
-
-      {showScrollTop && (
-        <Button
-          variant="outline"
-          size="icon"
-          className="fixed bottom-4 right-4 h-10 w-10 rounded-full shadow-md"
-          onClick={scrollToTop}
-        >
-          <ArrowUp className="h-5 w-5" />
-        </Button>
-      )}
-
-      {/* 随机题目对话框 */}
-      <Dialog
-        open={randomQuestionDialogOpen}
-        onOpenChange={setRandomQuestionDialogOpen}
-      >
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>随机面试题</DialogTitle>
-            <DialogDescription>
-              随机抽取的前端面试题，点击"换一道"可以切换到其他题目
-            </DialogDescription>
-          </DialogHeader>
-
-          {currentRandomQuestion && (
-            <div className="mt-4 space-y-4 max-h-[calc(80vh-150px)] overflow-y-auto pr-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">
-                  {currentRandomQuestion.company}
-                </span>
-                <Badge variant="outline">{currentRandomQuestion.level}</Badge>
-                <Badge variant="secondary">
-                  {currentRandomQuestion.category}
-                </Badge>
-                <span className="text-xs text-muted-foreground">
-                  {currentRandomQuestion.date}
-                </span>
-              </div>
-
-              <div className="flex">
-                {renderStarRating(currentRandomQuestion.rating)}
-              </div>
-
-              <div className="p-4 border rounded-md bg-muted/30">
-                <p className="text-base">{currentRandomQuestion.content}</p>
-              </div>
-
-              <div className="flex flex-col space-y-4">
-                <Dialog>
-                  <DialogTrigger asChild>
+                    {renderPagination()}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">
+                      没有找到符合条件的问题
+                    </p>
                     <Button
                       variant="outline"
-                      className="w-full"
-                      onClick={() => getAiAnalysis(currentRandomQuestion.id)}
+                      onClick={resetFilters}
+                      className="mt-4"
                     >
-                      <Bot className="h-4 w-4 mr-2" />
-                      查看AI解析
+                      重置筛选条件
                     </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <DialogTitle>AI 解析</DialogTitle>
-                          <DialogDescription>
-                            针对"{currentRandomQuestion.content}"
-                          </DialogDescription>
-                        </div>
-                        {aiAnalysis[currentRandomQuestion.id] && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 rounded-full"
-                            onClick={() =>
-                              copyAiAnalysis(
-                                currentRandomQuestion.content,
-                                aiAnalysis[currentRandomQuestion.id]
-                              )
-                            }
-                            title="复制内容"
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                        )}
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="favorites" className="mt-0">
+                {filteredQuestions.length > 0 ? (
+                  <div className="space-y-4">
+                    {filteredQuestions.map(question => (
+                      <Card
+                        key={question.id}
+                        id={`question-${question.id}`}
+                        className={`transition-all duration-300 ${question.isHidden ? "opacity-60" : ""}`}
+                      >
+                        <CardHeader className="p-4 pb-2 flex flex-row items-start justify-between">
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium text-sm">
+                                {question.company}
+                              </span>
+                              <Badge variant="outline">{question.level}</Badge>
+                              <Badge variant="secondary">
+                                {question.category}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                {question.date}
+                              </span>
+                            </div>
+                            {renderStarRating(question.rating)}
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  className="h-8 px-2 text-xs sm:text-sm flex items-center gap-1"
+                                  onClick={() => getAiAnalysis(question.id)}
+                                  title="AI分析"
+                                >
+                                  <Bot className="h-4 w-4" />
+                                  <span className="hidden sm:inline">AI分析</span>
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent
+                                className="max-w-[90vw] md:max-w-4xl lg:max-w-5xl h-[85vh] p-0 flex flex-col gap-0 outline-none overflow-hidden"
+                                onOpenAutoFocus={(e) => e.preventDefault()}
+                              >
+                                <DialogHeader className="px-6 py-4 border-b bg-muted/10 shrink-0 pr-12">
+                                  <div className="flex items-center justify-between">
+                                    <div className="space-y-1">
+                                      <DialogTitle className="flex items-center gap-2">
+                                        <Bot className="h-5 w-5 text-primary" />
+                                        AI 智能解析
+                                      </DialogTitle>
+                                      <DialogDescription className="line-clamp-1 text-xs sm:text-sm">
+                                        针对: <span className="font-medium text-foreground">"{question.content}"</span>
+                                      </DialogDescription>
+                                    </div>
+                                    {aiAnalysis[question.id] && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 gap-1.5 mr-6 sm:mr-0"
+                                        onClick={() =>
+                                          copyAiAnalysis(
+                                            question.content,
+                                            aiAnalysis[question.id]
+                                          )
+                                        }
+                                        title="复制内容"
+                                      >
+                                        <Copy className="h-3.5 w-3.5" />
+                                        <span className="hidden sm:inline text-xs">复制</span>
+                                      </Button>
+                                    )}
+                                  </div>
+                                </DialogHeader>
+                                <div className="flex-1 overflow-y-auto p-6 scroll-smooth">
+                                  {aiAnalysis[question.id] ? (
+                                    <Markdown
+                                      content={aiAnalysis[question.id]}
+                                      className={
+                                        aiModelSettings.streaming &&
+                                          isAnalyzing[question.id]
+                                          ? "streaming-cursor"
+                                          : ""
+                                      }
+                                    />
+                                  ) : isAnalyzing[question.id] ? (
+                                    <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
+                                      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
+                                      <span className="text-sm font-medium animate-pulse">正在生成深度解析...</span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground/60 py-12">
+                                      <div className="bg-muted/50 p-6 rounded-full">
+                                        <Bot className="h-12 w-12" />
+                                      </div>
+                                      <div className="text-center space-y-2">
+                                        <p className="text-lg font-medium text-foreground">准备就绪</p>
+                                        <p>点击下方按钮，AI 将为您深入剖析这道面试题</p>
+                                      </div>
+                                      <Button
+                                        onClick={() => getAiAnalysis(question.id)}
+                                        size="lg"
+                                        className="mt-4 gap-2"
+                                      >
+                                        <Bot className="h-5 w-5" />
+                                        开始分析
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                              </DialogContent>
+                            </Dialog>
+
+                            <Button
+                              variant="ghost"
+                              onClick={() => toggleFavorite(question.id)}
+                              className="h-8 px-2 text-xs sm:text-sm flex items-center gap-1"
+                              title="收藏"
+                            >
+                              {question.isFavorite ? (
+                                <BookmarkCheck className="h-4 w-4 text-primary" />
+                              ) : (
+                                <Bookmark className="h-4 w-4" />
+                              )}
+                              <span className="hidden sm:inline">
+                                {question.isFavorite ? "已收藏" : "收藏"}
+                              </span>
+                            </Button>
+
+                            <Button
+                              variant="ghost"
+                              onClick={() => toggleHidden(question.id)}
+                              className="h-8 px-2 text-xs sm:text-sm flex items-center gap-1"
+                              title={question.isHidden ? "显示" : "隐藏"}
+                            >
+                              {question.isHidden ? (
+                                <Eye className="h-4 w-4" />
+                              ) : (
+                                <EyeOff className="h-4 w-4" />
+                              )}
+                              <span className="hidden sm:inline">
+                                {question.isHidden ? "显示" : "隐藏"}
+                              </span>
+                            </Button>
+                          </div>
+                        </CardHeader>
+
+                        <CardContent className="p-4 pt-2">
+                          <p className="text-base">{question.content}</p>
+                        </CardContent>
+                      </Card>
+                    ))}
+
+                    {renderPagination()}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">没有收藏的问题</p>
+                    <Button
+                      variant="outline"
+                      onClick={() => setActiveTab("all")}
+                      className="mt-4"
+                    >
+                      浏览所有问题
+                    </Button>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          </div>
+        </div>
+
+        {showScrollTop && (
+          <Button
+            variant="outline"
+            size="icon"
+            className="fixed bottom-4 right-4 h-10 w-10 rounded-full shadow-md"
+            onClick={scrollToTop}
+          >
+            <ArrowUp className="h-5 w-5" />
+          </Button>
+        )}
+
+        {/* 随机题目对话框 */}
+        <Dialog
+          open={randomQuestionDialogOpen}
+          onOpenChange={setRandomQuestionDialogOpen}
+        >
+          <DialogContent className="max-w-[95vw] sm:max-w-[700px] md:max-w-[800px] overflow-hidden p-0 gap-0">
+            <DialogHeader className="px-6 py-5 border-b bg-sidebar-accent/5">
+              <DialogTitle className="flex items-center gap-2 text-xl">
+                <Shuffle className="h-5 w-5 text-primary" />
+                随机模拟面试
+              </DialogTitle>
+              <DialogDescription className="text-sm">
+                从海量题库中为您随机抽取，模拟真实面试场景。
+              </DialogDescription>
+            </DialogHeader>
+
+            {currentRandomQuestion && (
+              <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2 -mr-2 p-6">
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline" className="text-xs">{currentRandomQuestion.company}</Badge>
+                        <Badge variant="secondary" className="text-xs">{currentRandomQuestion.level}</Badge>
+                        <Badge className="text-xs bg-primary/10 text-primary hover:bg-primary/20 border-0">{currentRandomQuestion.category}</Badge>
                       </div>
-                    </DialogHeader>
-                    <div className="max-h-[calc(80vh-120px)] overflow-y-auto pr-1 mt-4">
-                      {aiAnalysis[currentRandomQuestion.id] ? (
-                        <Markdown
-                          content={aiAnalysis[currentRandomQuestion.id]}
-                          className={
-                            aiModelSettings.streaming &&
-                              isAnalyzing[currentRandomQuestion.id]
-                              ? "animate-pulse-caret"
-                              : ""
-                          }
-                        />
-                      ) : isAnalyzing[currentRandomQuestion.id] ? (
-                        <div className="flex items-center justify-center p-4">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                          <span className="ml-2">正在生成AI解析...</span>
-                        </div>
-                      ) : (
-                        <div className="text-center p-4">
-                          <p>点击"分析"按钮开始生成AI解析</p>
-                          <Button
-                            onClick={() =>
-                              getAiAnalysis(currentRandomQuestion.id)
-                            }
-                            className="mt-2"
-                          >
-                            <Bot className="h-4 w-4 mr-2" />
-                            分析
-                          </Button>
-                        </div>
-                      )}
+                      <div className="pt-1">
+                        {renderStarRating(currentRandomQuestion.rating)}
+                      </div>
                     </div>
-                  </DialogContent>
-                </Dialog>
-              </div>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap bg-muted px-2 py-1 rounded">
+                      {currentRandomQuestion.date}
+                    </span>
+                  </div>
 
-              <div className="flex justify-between gap-2 pt-2">
-                <div className="flex gap-2">
-                  <Button
-                    variant={
-                      currentRandomQuestion.isFavorite ? "default" : "outline"
-                    }
-                    onClick={() => toggleFavorite(currentRandomQuestion.id)}
-                    className="flex items-center gap-1"
-                  >
-                    {currentRandomQuestion.isFavorite ? (
-                      <>
-                        <BookmarkCheck className="h-4 w-4" />
-                        已收藏
-                      </>
-                    ) : (
-                      <>
-                        <Bookmark className="h-4 w-4" />
-                        收藏
-                      </>
-                    )}
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    onClick={() => toggleHidden(currentRandomQuestion.id)}
-                    className="flex items-center gap-1"
-                  >
-                    {currentRandomQuestion.isHidden ? (
-                      <>
-                        <Eye className="h-4 w-4" />
-                        已隐藏
-                      </>
-                    ) : (
-                      <>
-                        <EyeOff className="h-4 w-4" />
-                        隐藏
-                      </>
-                    )}
-                  </Button>
+                  <div className="p-5 border rounded-lg bg-card shadow-sm">
+                    <p className="text-lg font-medium leading-relaxed">{currentRandomQuestion.content}</p>
+                  </div>
                 </div>
 
-                <Button
-                  onClick={getNextRandomQuestion}
-                  className="flex items-center gap-1"
-                >
-                  <Shuffle className="h-4 w-4" />
-                  换一道
-                </Button>
+                <div className="flex flex-col gap-3">
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="default"
+                        className="w-full h-10 shadow-sm"
+                        onClick={() => getAiAnalysis(currentRandomQuestion.id)}
+                      >
+                        <Bot className="h-4 w-4 mr-2" />
+                        AI 深度解析
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent
+                      className="max-w-[90vw] md:max-w-4xl lg:max-w-5xl h-[85vh] p-0 flex flex-col gap-0 outline-none overflow-hidden"
+                      onOpenAutoFocus={(e) => e.preventDefault()}
+                    >
+                      <DialogHeader className="px-6 py-4 border-b bg-muted/10 shrink-0 pr-12">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-1">
+                            <DialogTitle className="flex items-center gap-2">
+                              <Bot className="h-5 w-5 text-primary" />
+                              AI 智能解析
+                            </DialogTitle>
+                            <DialogDescription className="line-clamp-1 text-xs sm:text-sm">
+                              针对: <span className="font-medium text-foreground">"{currentRandomQuestion.content}"</span>
+                            </DialogDescription>
+                          </div>
+                          {aiAnalysis[currentRandomQuestion.id] && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 gap-1.5 mr-6 sm:mr-0"
+                              onClick={() =>
+                                copyAiAnalysis(
+                                  currentRandomQuestion.content,
+                                  aiAnalysis[currentRandomQuestion.id]
+                                )
+                              }
+                              title="复制内容"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                              <span className="hidden sm:inline text-xs">复制</span>
+                            </Button>
+                          )}
+                        </div>
+                      </DialogHeader>
+                      <div className="flex-1 overflow-y-auto p-6 scroll-smooth">
+                        {aiAnalysis[currentRandomQuestion.id] ? (
+                          <Markdown
+                            content={aiAnalysis[currentRandomQuestion.id]}
+                            className={
+                              aiModelSettings.streaming &&
+                                isAnalyzing[currentRandomQuestion.id]
+                                ? "streaming-cursor"
+                                : ""
+                            }
+                          />
+                        ) : isAnalyzing[currentRandomQuestion.id] ? (
+                          <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
+                            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+                            <span className="text-sm font-medium animate-pulse">正在生成深度解析...</span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground/60 py-12">
+                            <div className="bg-muted/50 p-6 rounded-full">
+                              <Bot className="h-12 w-12" />
+                            </div>
+                            <div className="text-center space-y-2">
+                              <p className="text-lg font-medium text-foreground">准备就绪</p>
+                              <p>点击下方按钮，AI 将为您深入剖析这道面试题</p>
+                            </div>
+                            <Button
+                              onClick={() =>
+                                getAiAnalysis(currentRandomQuestion.id)
+                              }
+                              size="lg"
+                              variant="default"
+                              className="mt-4 gap-2"
+                            >
+                              <Bot className="h-5 w-5" />
+                              开始分析
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => toggleHidden(currentRandomQuestion.id)}
+                      className="flex items-center justify-center gap-2 h-10"
+                    >
+                      {currentRandomQuestion.isHidden ? (
+                        <>
+                          <Eye className="h-4 w-4" />
+                          已屏蔽
+                        </>
+                      ) : (
+                        <>
+                          <EyeOff className="h-4 w-4" />
+                          屏蔽此题
+                        </>
+                      )}
+                    </Button>
+
+                    <Button
+                      variant={
+                        currentRandomQuestion.isFavorite ? "secondary" : "outline"
+                      }
+                      onClick={() => toggleFavorite(currentRandomQuestion.id)}
+                      className="flex items-center justify-center gap-2 h-10"
+                    >
+                      {currentRandomQuestion.isFavorite ? (
+                        <>
+                          <BookmarkCheck className="h-4 w-4 text-primary" />
+                          已收藏
+                        </>
+                      ) : (
+                        <>
+                          <Bookmark className="h-4 w-4" />
+                          加入收藏
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  <div className="pt-2">
+                    <Button
+                      onClick={getNextRandomQuestion}
+                      className="w-full flex items-center justify-center gap-2 h-11 text-base"
+                      variant="secondary"
+                    >
+                      <Shuffle className="h-4 w-4" />
+                      换一题
+                    </Button>
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+            )}
+          </DialogContent>
+        </Dialog>
 
-      <Toaster />
+        <Toaster />
 
-      <style jsx global>{`
+        <style jsx global>{`
         .highlight-question {
           animation: highlight 2s ease-in-out;
         }
@@ -1694,60 +1767,29 @@ export default function InterviewQuestionsPage() {
           }
         }
 
-        .animate-pulse-caret {
+        .streaming-cursor {
           position: relative;
         }
 
-        .animate-pulse-caret::after {
+        .streaming-cursor::after {
           content: "";
-          position: absolute;
           display: inline-block;
-          width: 2px;
-          height: 1.2em;
+          width: 4px;
+          height: 1.25em;
+          vertical-align: text-bottom;
           background-color: currentColor;
-          animation: blink 1s step-end infinite;
-          margin-left: 1px;
-          opacity: 0.7;
+          animation: cursor-blink 1s step-end infinite;
+          margin-left: 2px;
+          opacity: 1;
         }
 
-        @keyframes blink {
-          0%,
-          100% {
-            opacity: 0;
+        @keyframes cursor-blink {
+          0%, 100% {
+            opacity: 1;
           }
           50% {
-            opacity: 0.7;
+            opacity: 0;
           }
-        }
-
-        /* 自定义滚动条样式 */
-        .max-h-\\[calc\\(80vh-120px\\)\\],
-        .max-h-\\[calc\\(80vh-150px\\)\\] {
-          /* 滚动条宽度和轨道样式 */
-          &::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-          }
-
-          &::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.05);
-            border-radius: 3px;
-          }
-
-          /* 滚动条滑块样式 */
-          &::-webkit-scrollbar-thumb {
-            background: rgba(var(--primary-rgb), 0.2);
-            border-radius: 3px;
-            transition: background 0.2s ease;
-          }
-
-          &::-webkit-scrollbar-thumb:hover {
-            background: rgba(var(--primary-rgb), 0.5);
-          }
-
-          /* Firefox滚动条样式 */
-          scrollbar-width: thin;
-          scrollbar-color: rgba(var(--primary-rgb), 0.2) rgba(0, 0, 0, 0.05);
         }
 
         /* Markdown样式 */
@@ -1967,6 +2009,7 @@ export default function InterviewQuestionsPage() {
           @apply p-4;
         }
       `}</style>
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }
