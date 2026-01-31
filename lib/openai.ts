@@ -66,19 +66,19 @@ export async function getAiAnalysis(
         if (done) break;
         const text = decoder.decode(value, { stream: true });
         cumulativeText += text;
-        onChunk(cumulativeText);
+        onChunk(cleanAiResponse(cumulativeText));
       }
 
       const text = decoder.decode();
       if (text) {
         cumulativeText += text;
-        onChunk(cumulativeText);
+        onChunk(cleanAiResponse(cumulativeText));
       }
 
-      return cumulativeText;
+      return cleanAiResponse(cumulativeText);
     } else {
       const text = await response.text();
-      return text;
+      return cleanAiResponse(text);
     }
   } catch (error) {
     console.error("AI API调用失败:", error);
@@ -142,4 +142,13 @@ function getMockAnalysis(question: string): Promise<string> {
       resolve(getMockAnalysisText(question));
     }, 1000);
   });
+}
+
+// 过滤掉 AI 思考过程的标签
+export function cleanAiResponse(text: string): string {
+  // 移除完整的 <think>...</think> 块
+  let cleaned = text.replace(/<think>[\s\S]*?<\/think>/g, "");
+  // 移除末尾可能存在的未闭合 <think>...
+  cleaned = cleaned.replace(/<think>[\s\S]*$/, "");
+  return cleaned;
 }
