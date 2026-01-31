@@ -1023,7 +1023,7 @@ export default function InterviewQuestionsPage() {
                         </div>
                       </div>
                     </DialogHeader>
-                    <div className={`flex-1 ${typeof aiAnalysis[question.id] === 'object' ? 'overflow-hidden p-0' : 'overflow-y-auto p-6'} scroll-smooth transition-all`}>
+                    <div className={`flex-1 ${typeof aiAnalysis[question.id] === 'object' ? 'overflow-hidden p-0' : 'overflow-y-auto p-6 pb-10'} scroll-smooth transition-all`}>
                       {typeof aiAnalysis[question.id] === 'object' ? (
                         <div className="h-full flex flex-col">
                           <Tabs value={activeAnalysisTab} onValueChange={setActiveAnalysisTab} className="h-full flex flex-col">
@@ -1049,9 +1049,9 @@ export default function InterviewQuestionsPage() {
                                 </TabsTrigger>
                               </TabsList>
                             </div>
-                            <div className="flex-1 overflow-y-auto p-6">
+                            <div className="flex-1 overflow-y-auto p-6 pb-10">
                               {['coach', 'deep', 'quick'].map((mode) => (
-                                <TabsContent key={mode} value={mode} className="mt-0 h-full outline-none">
+                                <TabsContent key={mode} value={mode} className="mt-0 outline-none">
                                   <Markdown
                                     content={(aiAnalysis[question.id] as any)[mode] || ''}
                                     className={
@@ -1781,7 +1781,7 @@ export default function InterviewQuestionsPage() {
                             </div>
                           </div>
                         </DialogHeader>
-                        <div className={`flex-1 ${typeof aiAnalysis[currentRandomQuestion.id] === 'object' ? 'overflow-hidden p-0' : 'overflow-y-auto p-6 pt-4 md:p-8 md:pt-6'} scroll-smooth transition-all`}>
+                        <div className={`flex-1 ${typeof aiAnalysis[currentRandomQuestion.id] === 'object' ? 'overflow-hidden p-0' : 'overflow-y-auto p-6 pt-4 md:p-8 md:pt-6 pb-20 md:pb-24'} scroll-smooth transition-all`}>
                           {typeof aiAnalysis[currentRandomQuestion.id] === 'object' ? (
                             <div className="h-full flex flex-col">
                               <Tabs value={activeAnalysisTab} onValueChange={setActiveAnalysisTab} className="h-full flex flex-col">
@@ -1807,9 +1807,9 @@ export default function InterviewQuestionsPage() {
                                     </TabsTrigger>
                                   </TabsList>
                                 </div>
-                                <div className="flex-1 overflow-y-auto p-6 md:p-8">
+                                <div className="flex-1 overflow-y-auto p-6 md:p-8 pb-10 md:pb-24">
                                   {['coach', 'deep', 'quick'].map((mode) => (
-                                    <TabsContent key={mode} value={mode} className="mt-0 h-full max-w-4xl mx-auto outline-none">
+                                    <TabsContent key={mode} value={mode} className="mt-0 max-w-4xl mx-auto outline-none">
                                       <Markdown
                                         content={(aiAnalysis[currentRandomQuestion.id] as any)[mode] || ''}
                                         className={
@@ -2122,8 +2122,8 @@ export default function InterviewQuestionsPage() {
           @apply bg-primary/20 px-1 rounded;
         }
 
-        .prose *:first-child {
-          @apply mt-0;
+        .prose > *:first-child {
+          margin-top: 0 !important;
         }
 
         .prose *:last-child {
