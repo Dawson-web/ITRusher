@@ -61,7 +61,7 @@ import {
   levels,
 } from "@/lib/interview-data";
 import { getAiAnalysis as fetchAiAnalysis, AiSettings } from "@/lib/openai";
-import { defaultAiSettings } from "@/lib/ai-defaults";
+import { defaultAiSettings, PROMPT_TEMPLATES } from "@/lib/ai-defaults";
 import Markdown from "@/app/components/markdown";
 import { ThemeToggle } from "@/app/components/theme-toggle";
 
@@ -149,6 +149,14 @@ export default function InterviewQuestionsPage() {
 
   // 添加设置对话框的开关状态
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
+  const [promptValue, setPromptValue] = useState("");
+
+  // 当设置对话框打开时，初始化 promptValue
+  useEffect(() => {
+    if (aiSettingsOpen) {
+      setPromptValue(aiModelSettings.prompt);
+    }
+  }, [aiSettingsOpen, aiModelSettings]);
 
   // 从 localStorage 中加载筛选状态的函数
   const loadFilterState = () => {
@@ -939,12 +947,33 @@ export default function InterviewQuestionsPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="prompt">分析提示词</Label>
+                      <div className="flex justify-between items-center">
+                        <Label htmlFor="prompt">分析提示词</Label>
+                        <Select
+                          onValueChange={(val) => {
+                            if (val && PROMPT_TEMPLATES[val as keyof typeof PROMPT_TEMPLATES]) {
+                              setPromptValue(PROMPT_TEMPLATES[val as keyof typeof PROMPT_TEMPLATES].value);
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="h-8 w-[200px] text-xs">
+                            <SelectValue placeholder="选择预设提示词模板" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(PROMPT_TEMPLATES).map(([key, template]) => (
+                              <SelectItem key={key} value={key} className="text-xs">
+                                {template.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                       <textarea
                         id="prompt"
                         name="prompt"
                         placeholder="自定义提示词模板"
-                        defaultValue={aiModelSettings.prompt}
+                        value={promptValue}
+                        onChange={(e) => setPromptValue(e.target.value)}
                         className="flex min-h-[180px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       />
                       <p className="text-xs text-muted-foreground">
@@ -1228,7 +1257,7 @@ export default function InterviewQuestionsPage() {
                                     content={aiAnalysis[question.id]}
                                     className={
                                       aiModelSettings.streaming &&
-                                      isAnalyzing[question.id]
+                                        isAnalyzing[question.id]
                                         ? "animate-pulse-caret"
                                         : ""
                                     }
@@ -1386,7 +1415,7 @@ export default function InterviewQuestionsPage() {
                                     content={aiAnalysis[question.id]}
                                     className={
                                       aiModelSettings.streaming &&
-                                      isAnalyzing[question.id]
+                                        isAnalyzing[question.id]
                                         ? "animate-pulse-caret"
                                         : ""
                                     }
@@ -1565,7 +1594,7 @@ export default function InterviewQuestionsPage() {
                           content={aiAnalysis[currentRandomQuestion.id]}
                           className={
                             aiModelSettings.streaming &&
-                            isAnalyzing[currentRandomQuestion.id]
+                              isAnalyzing[currentRandomQuestion.id]
                               ? "animate-pulse-caret"
                               : ""
                           }
