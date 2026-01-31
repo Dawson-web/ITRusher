@@ -10,6 +10,7 @@ export const defaultAiSettings: AiSettings = {
   model: "gpt-5-mini",
   baseUrl: "https://api.openai.com/v1",
   streaming: true, // 默认开启流式传输
+  superMode: false,
   prompt: `作为一名资深的前端面试官，请你对以下面试问题进行深入分析和解读。
       
 上下文：面试者是一名前端开发人员，准备参加技术面试。

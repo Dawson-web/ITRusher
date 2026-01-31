@@ -20,6 +20,7 @@ import {
   Copy,
   Github,
   X,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -137,7 +138,7 @@ export default function InterviewQuestionsPage() {
   const [showScrollTop, setShowScrollTop] = useState(false);
 
   // AI Analysis state
-  const [aiAnalysis, setAiAnalysis] = useState<{ [key: number]: string }>({});
+  const [aiAnalysis, setAiAnalysis] = useState<{ [key: number]: string | { coach: string; deep: string; quick: string } }>({});
   const [isAnalyzing, setIsAnalyzing] = useState<{ [key: number]: boolean }>(
     {}
   );
@@ -157,6 +158,8 @@ export default function InterviewQuestionsPage() {
   // 添加设置对话框的开关状态
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
   const [promptValue, setPromptValue] = useState("");
+  // 添加 AI 分析的 Tab 状态
+  const [activeAnalysisTab, setActiveAnalysisTab] = useState("coach");
 
   // 当设置对话框打开时，初始化 promptValue
   useEffect(() => {
@@ -679,71 +682,102 @@ export default function InterviewQuestionsPage() {
       [id]: true,
     }));
 
-    // 如果开启了流式传输
-    if (aiModelSettings.streaming) {
-      // 初始化空内容
-      setAiAnalysis(prev => ({
-        ...prev,
-        [id]: "",
-      }));
-
-      // 流式处理函数
-      const handleStreamingChunk = (chunk: string) => {
+    try {
+      if (aiModelSettings.superMode) {
+        // Super Mode: Invoke 3 default prompts
         setAiAnalysis(prev => ({
           ...prev,
-          [id]: chunk,
+          [id]: { coach: "", deep: "", quick: "" },
         }));
-      };
 
-      try {
-        // 使用流式API
-        await fetchAiAnalysis(
-          question.content,
-          aiModelSettings,
-          handleStreamingChunk
+        const prompts = ["coach", "deep", "quick"] as const;
+
+        await Promise.all(
+          prompts.map(async key => {
+            const settings = {
+              ...aiModelSettings,
+              prompt: PROMPT_TEMPLATES[key].value,
+            };
+
+            const handleChunk = (chunk: string) => {
+              setAiAnalysis(prev => {
+                const current = prev[id];
+                const currentObj =
+                  typeof current === "object"
+                    ? current
+                    : { coach: "", deep: "", quick: "" };
+                return {
+                  ...prev,
+                  [id]: { ...currentObj, [key]: chunk },
+                };
+              });
+            };
+
+            try {
+              if (settings.streaming) {
+                await fetchAiAnalysis(question.content, settings, handleChunk);
+              } else {
+                const result = await fetchAiAnalysis(question.content, settings);
+                handleChunk(result);
+              }
+            } catch (error) {
+              handleChunk(
+                `分析生成失败: ${error instanceof Error ? error.message : "未知错误"}`
+              );
+            }
+          })
         );
-      } catch (error) {
-        console.error("AI分析失败:", error);
+      } else {
+        // Normal Mode
+        if (aiModelSettings.streaming) {
+          setAiAnalysis(prev => ({
+            ...prev,
+            [id]: "",
+          }));
+
+          const handleStreamingChunk = (chunk: string) => {
+            setAiAnalysis(prev => ({
+              ...prev,
+              [id]: chunk,
+            }));
+          };
+
+          await fetchAiAnalysis(
+            question.content,
+            aiModelSettings,
+            handleStreamingChunk
+          );
+        } else {
+          setAiAnalysis(prev => ({
+            ...prev,
+            [id]: "正在分析中...",
+          }));
+
+          const analysis = await fetchAiAnalysis(
+            question.content,
+            aiModelSettings
+          );
+
+          setAiAnalysis(prev => ({
+            ...prev,
+            [id]: analysis,
+          }));
+        }
+      }
+    } catch (error) {
+      console.error("AI分析失败:", error);
+      // Only set error for normal mode or if everything failed
+      if (!aiModelSettings.superMode) {
         setAiAnalysis(prev => ({
           ...prev,
           [id]: `分析生成失败: ${error instanceof Error ? error.message : "未知错误"}`,
         }));
-      } finally {
-        setIsAnalyzing(prev => ({
-          ...prev,
-          [id]: false,
-        }));
       }
-    } else {
-      // 非流式传输方式
-      setAiAnalysis(prev => ({
+    } finally {
+      setIsAnalyzing(prev => ({
         ...prev,
-        [id]: "正在分析中...",
+        [id]: false,
       }));
-
-      try {
-        // 使用新的OpenAI工具类
-        const analysis = await fetchAiAnalysis(
-          question.content,
-          aiModelSettings
-        );
-
-        setAiAnalysis(prev => ({
-          ...prev,
-          [id]: analysis,
-        }));
-      } catch (error) {
-        console.error("AI分析失败:", error);
-        setAiAnalysis(prev => ({
-          ...prev,
-          [id]: `分析生成失败: ${error instanceof Error ? error.message : "未知错误"}`,
-        }));
-      } finally {
-        setIsAnalyzing(prev => ({
-          ...prev,
-          [id]: false,
-        }));
-      }
     }
   };
 
@@ -974,12 +1008,11 @@ export default function InterviewQuestionsPage() {
                                 variant="ghost"
                                 size="sm"
                                 className="h-8 px-2 sm:px-3 gap-1.5 text-muted-foreground hover:text-foreground"
-                                onClick={() =>
-                                  copyAiAnalysis(
-                                    question.content,
-                                    aiAnalysis[question.id]
-                                  )
-                                }
+                                onClick={() => {
+                                  const ans = aiAnalysis[question.id];
+                                  const content = typeof ans === 'string' ? ans : ans[activeAnalysisTab as keyof typeof ans];
+                                  copyAiAnalysis(question.content, content);
+                                }}
                                 title="复制内容"
                               >
                                 <Copy className="h-4 w-4" />
@@ -990,10 +1023,58 @@ export default function InterviewQuestionsPage() {
                         </div>
                       </div>
                     </DialogHeader>
-                    <div className="flex-1 overflow-y-auto p-6 scroll-smooth">
-                      {aiAnalysis[question.id] ? (
+                    <div className={`flex-1 ${typeof aiAnalysis[question.id] === 'object' ? 'overflow-hidden p-0' : 'overflow-y-auto p-6'} scroll-smooth transition-all`}>
+                      {typeof aiAnalysis[question.id] === 'object' ? (
+                        <div className="h-full flex flex-col">
+                          <Tabs value={activeAnalysisTab} onValueChange={setActiveAnalysisTab} className="h-full flex flex-col">
+                            <div className="shrink-0 bg-muted/5">
+                              <TabsList className="grid w-full grid-cols-3 h-11 bg-transparent p-0 rounded-none border-b">
+                                <TabsTrigger
+                                  value="coach"
+                                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent data-[state=active]:text-primary px-0 text-sm"
+                                >
+                                  全能教练
+                                </TabsTrigger>
+                                <TabsTrigger
+                                  value="deep"
+                                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent data-[state=active]:text-primary px-0 text-sm"
+                                >
+                                  深度原理
+                                </TabsTrigger>
+                                <TabsTrigger
+                                  value="quick"
+                                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent data-[state=active]:text-primary px-0 text-sm"
+                                >
+                                  速成技巧
+                                </TabsTrigger>
+                              </TabsList>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-6">
+                              {['coach', 'deep', 'quick'].map((mode) => (
+                                <TabsContent key={mode} value={mode} className="mt-0 h-full outline-none">
+                                  <Markdown
+                                    content={(aiAnalysis[question.id] as any)[mode] || ''}
+                                    className={
+                                      aiModelSettings.streaming &&
+                                        isAnalyzing[question.id]
+                                        ? "streaming-cursor"
+                                        : ""
+                                    }
+                                  />
+                                  {isAnalyzing[question.id] && !(aiAnalysis[question.id] as any)[mode] && (
+                                    <div className="flex items-center gap-2 text-muted-foreground mt-4 animate-pulse">
+                                      <div className="h-2 w-2 rounded-full bg-primary/50 animate-bounce" />
+                                      <span className="text-xs">正在思考中...</span>
+                                    </div>
+                                  )}
+                                </TabsContent>
+                              ))}
+                            </div>
+                          </Tabs>
+                        </div>
+                      ) : aiAnalysis[question.id] ? (
                         <Markdown
-                          content={aiAnalysis[question.id]}
+                          content={aiAnalysis[question.id] as string}
                           className={
                             aiModelSettings.streaming &&
                               isAnalyzing[question.id]
@@ -1209,6 +1290,7 @@ export default function InterviewQuestionsPage() {
                           baseUrl: formData.get("baseUrl") as string,
                           prompt: formData.get("prompt") as string,
                           streaming: formData.get("streaming") === "on",
+                          superMode: !!aiModelSettings.superMode, // Use state directly
                         };
                         saveAiModelSettings(settings);
                       }}
@@ -1256,7 +1338,33 @@ export default function InterviewQuestionsPage() {
                         </p>
                       </div>
 
-                      <div className="space-y-3">
+                      <div className="flex items-center space-x-2 bg-gradient-to-r from-purple-500/10 to-blue-500/10 p-3 rounded-lg border border-purple-200 dark:border-purple-900/50 mb-4 transition-all">
+                        <Checkbox
+                          id="superMode"
+                          name="superMode"
+                          checked={!!aiModelSettings.superMode}
+                          onCheckedChange={checked => {
+                            setAiModelSettings({
+                              ...aiModelSettings,
+                              superMode: checked as boolean,
+                            });
+                          }}
+                          className="data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600"
+                        />
+                        <div className="grid gap-1.5 leading-none">
+                          <label
+                            htmlFor="superMode"
+                            className="flex items-center gap-2 text-sm font-bold leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer text-purple-700 dark:text-purple-400"
+                          >
+                            <Zap className="w-3.5 h-3.5 fill-current" /> 超能模式 (Super Mode)
+                          </label>
+                          <p className="text-[0.8rem] text-muted-foreground">
+                            同时启用三种专家视角（全能教练、深度原理、速成技巧）进行全方位深度解析。
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className={`space-y-3 transition-opacity duration-300 ${aiModelSettings.superMode ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                         <div className="flex justify-between items-center">
                           <Label htmlFor="prompt">系统提示词 (System Prompt)</Label>
                           <Select
@@ -1659,12 +1767,11 @@ export default function InterviewQuestionsPage() {
                                     variant="ghost"
                                     size="sm"
                                     className="h-8 px-2 sm:px-3 gap-1.5 text-muted-foreground hover:text-foreground"
-                                    onClick={() =>
-                                      copyAiAnalysis(
-                                        currentRandomQuestion.content,
-                                        aiAnalysis[currentRandomQuestion.id]
-                                      )
-                                    }
+                                    onClick={() => {
+                                      const ans = aiAnalysis[currentRandomQuestion.id];
+                                      const content = typeof ans === 'string' ? ans : ans[activeAnalysisTab as keyof typeof ans];
+                                      copyAiAnalysis(currentRandomQuestion.content, content);
+                                    }}
                                   >
                                     <Copy className="h-4 w-4" />
                                     <span className="hidden sm:inline text-xs sm:text-sm">复制</span>
@@ -1674,11 +1781,59 @@ export default function InterviewQuestionsPage() {
                             </div>
                           </div>
                         </DialogHeader>
-                        <div className="flex-1 overflow-y-auto p-6 pt-4 md:p-8 md:pt-6 scroll-smooth">
-                          {aiAnalysis[currentRandomQuestion.id] ? (
+                        <div className={`flex-1 ${typeof aiAnalysis[currentRandomQuestion.id] === 'object' ? 'overflow-hidden p-0' : 'overflow-y-auto p-6 pt-4 md:p-8 md:pt-6'} scroll-smooth transition-all`}>
+                          {typeof aiAnalysis[currentRandomQuestion.id] === 'object' ? (
+                            <div className="h-full flex flex-col">
+                              <Tabs value={activeAnalysisTab} onValueChange={setActiveAnalysisTab} className="h-full flex flex-col">
+                                <div className="shrink-0 bg-muted/5">
+                                  <TabsList className="grid w-full grid-cols-3 h-11 bg-transparent p-0 rounded-none border-b">
+                                    <TabsTrigger
+                                      value="coach"
+                                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent data-[state=active]:text-primary px-0 text-sm"
+                                    >
+                                      全能教练
+                                    </TabsTrigger>
+                                    <TabsTrigger
+                                      value="deep"
+                                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent data-[state=active]:text-primary px-0 text-sm"
+                                    >
+                                      深度原理
+                                    </TabsTrigger>
+                                    <TabsTrigger
+                                      value="quick"
+                                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent data-[state=active]:text-primary px-0 text-sm"
+                                    >
+                                      速成技巧
+                                    </TabsTrigger>
+                                  </TabsList>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-6 md:p-8">
+                                  {['coach', 'deep', 'quick'].map((mode) => (
+                                    <TabsContent key={mode} value={mode} className="mt-0 h-full max-w-4xl mx-auto outline-none">
+                                      <Markdown
+                                        content={(aiAnalysis[currentRandomQuestion.id] as any)[mode] || ''}
+                                        className={
+                                          aiModelSettings.streaming &&
+                                            isAnalyzing[currentRandomQuestion.id]
+                                            ? "streaming-cursor"
+                                            : ""
+                                        }
+                                      />
+                                      {isAnalyzing[currentRandomQuestion.id] && !(aiAnalysis[currentRandomQuestion.id] as any)[mode] && (
+                                        <div className="flex items-center gap-2 text-muted-foreground mt-4 animate-pulse">
+                                          <div className="h-2 w-2 rounded-full bg-primary/50 animate-bounce" />
+                                          <span className="text-xs">正在思考中...</span>
+                                        </div>
+                                      )}
+                                    </TabsContent>
+                                  ))}
+                                </div>
+                              </Tabs>
+                            </div>
+                          ) : aiAnalysis[currentRandomQuestion.id] ? (
                             <div className="max-w-4xl mx-auto">
                               <Markdown
-                                content={aiAnalysis[currentRandomQuestion.id]}
+                                content={aiAnalysis[currentRandomQuestion.id] as string}
                                 className={
                                   aiModelSettings.streaming &&
                                     isAnalyzing[currentRandomQuestion.id]

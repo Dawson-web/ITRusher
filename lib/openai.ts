@@ -5,6 +5,7 @@ export interface AiSettings {
   baseUrl: string;
   prompt: string;
   streaming: boolean;
+  superMode?: boolean;
 }
 
 export async function getAiAnalysis(
