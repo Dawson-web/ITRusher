@@ -7,7 +7,7 @@ import { AiSettings } from "./openai";
  */
 export const defaultAiSettings: AiSettings = {
   apiKey: "",
-  model: "gpt-3.5-turbo",
+  model: "gpt-5-mini",
   baseUrl: "https://api.openai.com/v1",
   streaming: false, // 默认关闭流式传输
   prompt: `作为一名资深的前端面试官，请你对以下面试问题进行深入分析和解读。

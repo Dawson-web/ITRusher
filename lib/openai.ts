@@ -1,4 +1,3 @@
-import OpenAI from "openai";
 
 export interface AiSettings {
   apiKey: string;
@@ -35,60 +34,53 @@ export async function getAiAnalysis(
       return getMockAnalysis(question);
     }
 
-    // 初始化OpenAI客户端
-    const openai = new OpenAI({
-      apiKey: settings.apiKey,
-      baseURL: settings.baseUrl,
-      dangerouslyAllowBrowser: true, // 允许在浏览器环境中运行
-    });
-
     // 替换提示词中的问题占位符
     const processedPrompt = settings.prompt.replace("{question}", question);
 
-    if (settings.streaming && onChunk) {
-      // 使用流式API
-      const stream = await openai.chat.completions.create({
+    const response = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt: processedPrompt,
+        apiKey: settings.apiKey,
+        baseUrl: settings.baseUrl,
         model: settings.model,
-        messages: [
-          {
-            role: "system",
-            content: processedPrompt,
-          },
-        ],
-        temperature: 0.7,
-        stream: true,
-      });
+      }),
+    });
 
-      let cumulativeContent = "";
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || response.statusText);
+    }
 
-      for await (const chunk of stream) {
-        // 累积内容
-        if (chunk.choices[0]?.delta?.content) {
-          cumulativeContent += chunk.choices[0].delta.content;
-          onChunk(cumulativeContent);
-        }
+    if (settings.streaming && onChunk) {
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response body');
+
+      let cumulativeText = "";
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const text = decoder.decode(value, { stream: true });
+        cumulativeText += text;
+        onChunk(cumulativeText);
       }
 
-      return cumulativeContent;
-    } else {
-      // 使用非流式API
-      const response = await openai.chat.completions.create({
-        model: settings.model,
-        messages: [
-          {
-            role: "system",
-            content: processedPrompt,
-          },
-        ],
-        temperature: 0.7,
-      });
+      const text = decoder.decode();
+      if (text) {
+        cumulativeText += text;
+        onChunk(cumulativeText);
+      }
 
-      return (
-        response.choices[0]?.message?.content || "无法生成分析，请检查API设置。"
-      );
+      return cumulativeText;
+    } else {
+      const text = await response.text();
+      return text;
     }
   } catch (error) {
-    console.error("OpenAI API调用失败:", error);
+    console.error("AI API调用失败:", error);
     return `分析生成失败: ${error instanceof Error ? error.message : "未知错误"}`;
   }
 }
