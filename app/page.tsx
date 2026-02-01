@@ -66,10 +66,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { useMobile } from "@/hooks/use-mobile";
 import {
   Question,
-  Questions,
-  categories,
-  companies,
-  levels,
+  fetchQuestions,
 } from "@/lib/interview-data";
 import { getAiAnalysis as fetchAiAnalysis, AiSettings } from "@/lib/openai";
 import { defaultAiSettings, PROMPT_TEMPLATES } from "@/lib/ai-defaults";
@@ -128,6 +125,11 @@ export default function InterviewQuestionsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
+
+  // Derived data states (formerly static imports)
+  const [categories, setCategories] = useState<string[]>([]);
+  const [companies, setCompanies] = useState<string[]>([]);
+  const [levels, setLevels] = useState<string[]>([]);
 
 
   // Filter states
@@ -189,19 +191,48 @@ export default function InterviewQuestionsPage() {
     }
   };
 
-  // 修改 useEffect 钩子，加载用户的筛选状态
-  useEffect(() => {
-    // In a real app, this would be an API call
-    const savedQuestions = localStorage.getItem("interviewQuestions");
-    if (savedQuestions) {
-      setQuestions(JSON.parse(savedQuestions));
-    } else {
-      setQuestions(Questions);
-      localStorage.setItem("interviewQuestions", JSON.stringify(Questions));
-    }
+  const updateDerivedLists = (qs: Question[]) => {
+    setCategories([
+      "全部",
+      ...Array.from(new Set(qs.map(item => item.category))),
+    ].filter(Boolean));
+    setCompanies([
+      "全部",
+      ...Array.from(new Set(qs.map(item => item.company))),
+    ].filter(Boolean));
+    setLevels([
+      "全部",
+      ...Array.from(new Set(qs.map(item => item.level))),
+    ].filter(Boolean));
+  };
 
-    // 加载保存的筛选状态
-    loadFilterState();
+  // 修改 useEffect 钩子，加载用户的筛选状态和数据
+  useEffect(() => {
+    const initData = async () => {
+      // In a real app, this would be an API call
+      const savedQuestions = localStorage.getItem("interviewQuestions");
+      let loadedQuestions: Question[] = [];
+
+      if (savedQuestions) {
+        loadedQuestions = JSON.parse(savedQuestions);
+      } else {
+        // Load from fetch/cache if not in localStorage
+        try {
+          loadedQuestions = await fetchQuestions();
+          localStorage.setItem("interviewQuestions", JSON.stringify(loadedQuestions));
+        } catch (e) {
+          console.error("Failed to load questions", e);
+          // Handle error or empty state
+        }
+      }
+      setQuestions(loadedQuestions);
+      updateDerivedLists(loadedQuestions);
+
+      // 加载保存的筛选状态
+      loadFilterState();
+    };
+
+    initData();
   }, []);
 
   // Apply filters and pagination
@@ -1131,6 +1162,8 @@ export default function InterviewQuestionsPage() {
                             </span>
                           </Button>
 
+                          <div className="h-4 w-[1px] bg-border mx-2" />
+
                           <Button
                             variant="ghost"
                             size="sm"
@@ -1852,6 +1885,22 @@ export default function InterviewQuestionsPage() {
                         </Button>
                         <Button
                           variant="ghost"
+                          size="sm"
+                          onClick={() => handleRefreshAnalysis(currentRandomQuestion.id)}
+                          disabled={isAnalyzing[currentRandomQuestion.id]}
+                          className="text-muted-foreground hover:text-primary gap-1"
+                        >
+                          <RotateCw
+                            className={`h-4 w-4 ${isAnalyzing[currentRandomQuestion.id] ? "animate-spin" : ""
+                              }`}
+                          />
+                          {isAnalyzing[currentRandomQuestion.id] ? "Loading" : "刷新"}
+                        </Button>
+
+                        <div className="h-4 w-[1px] bg-border mx-2" />
+
+                        <Button
+                          variant="ghost"
                           size="icon"
                           onClick={() => toggleFavorite(currentRandomQuestion.id)}
                           className={`h-8 w-8 ${currentRandomQuestion.isFavorite ? "text-yellow-500 hover:text-yellow-600" : "text-muted-foreground hover:text-foreground"}`}
@@ -1912,6 +1961,23 @@ export default function InterviewQuestionsPage() {
                               </DialogDescription>
                             </div>
                             <div className="flex items-center gap-1 sm:gap-2">
+                              {/* 刷新按钮 */}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 px-2 sm:px-3 gap-1.5 text-muted-foreground hover:text-foreground"
+                                onClick={() => handleRefreshAnalysis(currentRandomQuestion.id)}
+                                title="重新分析"
+                                disabled={isAnalyzing[currentRandomQuestion.id]}
+                              >
+                                <RotateCw className={`h-4 w-4 ${isAnalyzing[currentRandomQuestion.id] ? "animate-spin" : ""}`} />
+                                <span className="hidden sm:inline text-xs sm:text-sm">
+                                  {isAnalyzing[currentRandomQuestion.id] ? "加载" : "刷新"}
+                                </span>
+                              </Button>
+
+                              <div className="h-4 w-[1px] bg-border mx-2" />
+
                               <Button
                                 variant="ghost"
                                 size="sm"

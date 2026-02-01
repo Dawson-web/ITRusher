@@ -1,4 +1,4 @@
-import feData from "../data/fe.json";
+import { getStaticData, saveStaticData } from "./db";
 
 export interface Question {
   id: number;
@@ -12,31 +12,43 @@ export interface Question {
   isHidden: boolean;
 }
 
-export const Questions: Question[] = feData.map((item, index) => {
-  return {
-    id: index + 1,
-    company: item.c,
-    level: item.l,
-    content: item.q,
-    date: item.m,
-    rating: item.d,
-    category: item.t,
-    isFavorite: false,
-    isHidden: false,
-  };
-});
+export const fetchQuestions = async (): Promise<Question[]> => {
+  try {
+    // 1. Check IndexedDB
+    const cached = await getStaticData("interview_questions");
+    if (cached && cached.data) {
+      console.log("Loaded questions from IndexedDB cache");
+      return cached.data;
+    }
 
-export const categories = [
-  "全部",
-  ...Array.from(new Set(feData.map(item => item.t))),
-].filter(Boolean);
+    // 2. Fetch from network
+    console.log("Fetching questions from network...");
+    const response = await fetch("/fe.json");
+    if (!response.ok) {
+      throw new Error(`Failed to fetch questions: ${response.statusText}`);
+    }
+    const feData = await response.json();
 
-export const companies = [
-  "全部",
-  ...Array.from(new Set(feData.map(item => item.c))),
-].filter(Boolean);
+    // 3. Transform data
+    const questions: Question[] = feData.map((item: any, index: number) => ({
+      id: index + 1,
+      company: item.c,
+      level: item.l,
+      content: item.q,
+      date: item.m,
+      rating: item.d,
+      category: item.t,
+      isFavorite: false,
+      isHidden: false,
+    }));
 
-export const levels = [
-  "全部",
-  ...Array.from(new Set(feData.map(item => item.l))),
-].filter(Boolean);
+    // 4. Cache to IndexedDB
+    await saveStaticData("interview_questions", questions);
+    console.log("Questions cached to IndexedDB");
+
+    return questions;
+  } catch (error) {
+    console.error("Error loading questions:", error);
+    return [];
+  }
+};
