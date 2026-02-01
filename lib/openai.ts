@@ -88,11 +88,11 @@ export async function getAiAnalysis(
 
 // 当用户没有设置API密钥时使用的模拟数据
 function getMockAnalysisText(question: string): string {
-  return `# 模拟AI分析（未配置API密钥）
+  return `# 模拟AI 解析（未配置API密钥）
 
 ## 问题本质与考察点
 这是一个关于 **"${question}"** 的模拟分析展示。
-真实的AI分析会深入解析该问题的技术细节，但由于您尚未配置 API Key，此处仅展示排版效果。
+真实的AI 解析会深入解析该问题的技术细节，但由于您尚未配置 API Key，此处仅展示排版效果。
 
 **考察重点通常包括：**
 - 对核心概念的准确理解

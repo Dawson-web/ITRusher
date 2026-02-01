@@ -18,10 +18,13 @@ import {
   Settings,
   Bot,
   Copy,
+  RotateCw,
+  Trash2,
   Github,
   X,
   Zap,
 } from "lucide-react";
+import * as db from "@/lib/db";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -58,7 +61,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 import { useMobile } from "@/hooks/use-mobile";
 import {
@@ -158,7 +161,7 @@ export default function InterviewQuestionsPage() {
   // 添加设置对话框的开关状态
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
   const [promptValue, setPromptValue] = useState("");
-  // 添加 AI 分析的 Tab 状态
+  // 添加 AI 解析的 Tab 状态
   const [activeAnalysisTab, setActiveAnalysisTab] = useState("coach");
 
   // 当设置对话框打开时，初始化 promptValue
@@ -667,20 +670,77 @@ export default function InterviewQuestionsPage() {
     });
   };
 
+  // 清除所有 AI 缓存
+  const handleClearAiCache = async () => {
+    console.log("Clearing AI cache...");
+    try {
+      await db.clearAllAnalysis();
+      // 同时清除当前状态中的缓存
+      setAiAnalysis({});
+      setIsAnalyzing({});
+      toast({
+        title: "缓存已清除",
+        description: "所有保存的 AI 解析记录已删除",
+      });
+    } catch (error) {
+      console.error("清除缓存失败:", error);
+      toast({
+        title: "清除失败",
+        description: "无法清除缓存，请重试",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // 刷新单个题目的 AI 解析
+  const handleRefreshAnalysis = async (id: number) => {
+    // 直接强制刷新
+    getAiAnalysis(id, true);
+  };
+
   // Get AI analysis
-  const getAiAnalysis = async (id: number) => {
+  const getAiAnalysis = async (id: number, forceRefresh = false) => {
     // If analysis already exists, don't fetch again
-    if (aiAnalysis[id] || isAnalyzing[id]) {
+    if (!forceRefresh && (aiAnalysis[id] || isAnalyzing[id])) {
       return;
     }
 
     const question = questions.find(q => q.id === id);
     if (!question) return;
 
+    // Set analyzing state immediately
     setIsAnalyzing(prev => ({
       ...prev,
       [id]: true,
     }));
+
+    if (forceRefresh) {
+      // If refreshing, clear current data so UI might switch to loading indicator if needed,
+      // but since isAnalyzing is true, it should show loading/streaming cursor.
+      // We clear it to ensure we don't show old data while new one is fetching (if streaming doesn't start immediately).
+      setAiAnalysis(prev => {
+        const newState = { ...prev };
+        delete newState[id];
+        return newState;
+      });
+      // Fire and forget DB clear
+      db.deleteAnalysis(id).catch(err => console.error("Error clearing cache on refresh:", err));
+    } else {
+      // Check DB cache first
+      try {
+        const cached = await db.getAnalysis(id);
+        if (cached && cached.data) {
+          setAiAnalysis(prev => ({
+            ...prev,
+            [id]: cached.data,
+          }));
+          setIsAnalyzing(prev => ({ ...prev, [id]: false }));
+          return;
+        }
+      } catch (error) {
+        console.error("Error checking cache:", error);
+      }
+    }
 
     try {
       if (aiModelSettings.superMode) {
@@ -691,6 +751,8 @@ export default function InterviewQuestionsPage() {
         }));
 
         const prompts = ["coach", "deep", "quick"] as const;
+        // Use a track object to accumulate results for DB saving
+        const finalResults: Record<string, string> = {};
 
         await Promise.all(
           prompts.map(async key => {
@@ -701,8 +763,10 @@ export default function InterviewQuestionsPage() {
 
             let lastUpdate = 0;
             let timeoutId: NodeJS.Timeout | null = null;
+            let currentChunk = "";
 
             const handleChunk = (chunk: string) => {
+              currentChunk = chunk;
               const now = Date.now();
               const update = () => {
                 setAiAnalysis(prev => {
@@ -730,42 +794,43 @@ export default function InterviewQuestionsPage() {
 
             try {
               if (settings.streaming) {
-                await fetchAiAnalysis(question.content, settings, handleChunk);
-                // Ensure final update happens if not already covered
+                const result = await fetchAiAnalysis(question.content, settings, handleChunk);
                 if (timeoutId) clearTimeout(timeoutId);
-                setAiAnalysis(prev => {
-                  const current = prev[id];
-                  const currentObj = typeof current === "object" ? current : { coach: "", deep: "", quick: "" };
-                  // We need to fetch the final state? No, chunk is cumulative.
-                  // However, handleChunk might have been debounced/throttled.
-                  // Since fetchAiAnalysis waits for stream to finish, and we passed handleChunk, 
-                  // inside fetchAiAnalysis loop it calls handleChunk.
-                  // AFTER fetchAiAnalysis returns, the stream is done.
-                  // We should force one last update with the FINAL result to be sure (though fetchAiAnalysis returns full text too).
-                  return prev;
-                });
-                // Actually, fetchAiAnalysis returns the full text at the end of streaming too if we await it?
-                // Looking at lib/openai.ts, yes it returns cleanAiResponse(cumulativeText).
-                // So we can just do one final setAiAnalysis with the result to be absolutely sure we have everything and clear timeouts.
-              } else {
-                const result = await fetchAiAnalysis(question.content, settings);
-                // Non-streaming, just update once
+
+                // Final update with complete result
                 setAiAnalysis(prev => {
                   const current = prev[id];
                   const currentObj = typeof current === "object" ? current : { coach: "", deep: "", quick: "" };
                   return { ...prev, [id]: { ...currentObj, [key]: result } };
                 });
+                finalResults[key] = result;
+              } else {
+                const result = await fetchAiAnalysis(question.content, settings);
+                setAiAnalysis(prev => {
+                  const current = prev[id];
+                  const currentObj = typeof current === "object" ? current : { coach: "", deep: "", quick: "" };
+                  return { ...prev, [id]: { ...currentObj, [key]: result } };
+                });
+                finalResults[key] = result;
               }
             } catch (error) {
-              // ... error handling
+              const errorMsg = `分析生成失败: ${error instanceof Error ? error.message : "未知错误"}`;
               setAiAnalysis(prev => {
                 const current = prev[id];
                 const currentObj = typeof current === "object" ? current : { coach: "", deep: "", quick: "" };
-                return { ...prev, [id]: { ...currentObj, [key]: `分析生成失败: ${error instanceof Error ? error.message : "未知错误"}` } };
+                return { ...prev, [id]: { ...currentObj, [key]: errorMsg } };
               });
+              finalResults[key] = errorMsg;
             }
           })
         );
+
+        // Save to DB after all prompts are done
+        // Only save if at least one succeeded (or save whatever we have)
+        if (Object.keys(finalResults).length > 0) {
+          await db.saveAnalysis(id, finalResults as { coach: string; deep: string; quick: string });
+        }
+
       } else {
         // Normal Mode
         if (aiModelSettings.streaming) {
@@ -811,6 +876,10 @@ export default function InterviewQuestionsPage() {
             ...prev,
             [id]: finalResult,
           }));
+
+          // Save to DB
+          await db.saveAnalysis(id, finalResult);
+
         } else {
           setAiAnalysis(prev => ({
             ...prev,
@@ -826,10 +895,13 @@ export default function InterviewQuestionsPage() {
             ...prev,
             [id]: analysis,
           }));
+
+          // Save to DB
+          await db.saveAnalysis(id, analysis);
         }
       }
     } catch (error) {
-      console.error("AI分析失败:", error);
+      console.error("AI 解析失败:", error);
       // Only set error for normal mode or if everything failed
       if (!aiModelSettings.superMode) {
         setAiAnalysis(prev => ({
@@ -844,7 +916,6 @@ export default function InterviewQuestionsPage() {
       }));
     }
   };
-
   // Scroll event listener for "back to top" button
   useEffect(() => {
     const handleScroll = () => {
@@ -956,7 +1027,7 @@ export default function InterviewQuestionsPage() {
     );
   };
 
-  // 添加复制AI分析的函数
+  // 添加复制AI 解析的函数
   const copyAiAnalysis = (questionContent: string, analysisContent: string) => {
     const textToCopy = `问题：${questionContent}\n\n分析：\n${analysisContent}`;
 
@@ -965,7 +1036,7 @@ export default function InterviewQuestionsPage() {
       .then(() => {
         toast({
           title: "复制成功",
-          description: "问题和AI分析已复制到剪贴板",
+          description: "问题和AI 解析已复制到剪贴板",
         });
       })
       .catch(error => {
@@ -1045,6 +1116,21 @@ export default function InterviewQuestionsPage() {
                           </DialogDescription>
                         </div>
                         <div className="flex items-center gap-1 sm:gap-2">
+                          {/* 刷新按钮 */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 sm:px-3 gap-1.5 text-muted-foreground hover:text-foreground"
+                            onClick={() => handleRefreshAnalysis(question.id)}
+                            title="重新分析"
+                            disabled={isAnalyzing[question.id]}
+                          >
+                            <RotateCw className={`h-4 w-4 ${isAnalyzing[question.id] ? "animate-spin" : ""}`} />
+                            <span className="hidden sm:inline text-xs sm:text-sm">
+                              {isAnalyzing[question.id] ? "加载" : "刷新"}
+                            </span>
+                          </Button>
+
                           <Button
                             variant="ghost"
                             size="sm"
@@ -1486,6 +1572,28 @@ export default function InterviewQuestionsPage() {
                             实时逐字显示分析结果，提升交互体验。
                           </p>
                         </div>
+                      </div>
+
+                      {/* 缓存管理区 */}
+                      <div className="flex items-center justify-between bg-red-50/50 dark:bg-red-900/10 p-3 rounded-lg border border-red-100 dark:border-red-900/20">
+                        <div className="space-y-0.5">
+                          <label className="text-sm font-medium text-red-600 dark:text-red-400">
+                            缓存管理
+                          </label>
+                          <p className="text-[0.8rem] text-muted-foreground">
+                            清除所有已保存的 AI 解析缓存，释放空间。
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600 border-red-200 hover:bg-red-100 dark:border-red-800 dark:hover:bg-red-900/40"
+                          onClick={handleClearAiCache}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          清除缓存
+                        </Button>
                       </div>
 
                       <div className="flex justify-end pt-2">
