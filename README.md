@@ -80,6 +80,8 @@ pnpm start
 
 ![设置图片](./example/settings.png)
 
+![AI解析图片](./example/ai.png)
+
 ## 贡献指南
 
 欢迎提交Issue和Pull Request来帮助改进此项目。
