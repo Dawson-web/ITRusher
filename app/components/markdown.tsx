@@ -127,6 +127,9 @@ const Markdown = memo(({ content, className = "" }: MarkdownProps) => {
         </code>
       );
     },
+    hr(props) {
+      return <hr className="!my-6 border-border" {...props} />;
+    },
     table({ children }) {
       return (
         <div className="my-6 w-full overflow-hidden rounded-lg border border-border shadow-sm">
