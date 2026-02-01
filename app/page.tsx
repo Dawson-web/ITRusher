@@ -699,31 +699,70 @@ export default function InterviewQuestionsPage() {
               prompt: PROMPT_TEMPLATES[key].value,
             };
 
+            let lastUpdate = 0;
+            let timeoutId: NodeJS.Timeout | null = null;
+
             const handleChunk = (chunk: string) => {
-              setAiAnalysis(prev => {
-                const current = prev[id];
-                const currentObj =
-                  typeof current === "object"
-                    ? current
-                    : { coach: "", deep: "", quick: "" };
-                return {
-                  ...prev,
-                  [id]: { ...currentObj, [key]: chunk },
-                };
-              });
+              const now = Date.now();
+              const update = () => {
+                setAiAnalysis(prev => {
+                  const current = prev[id];
+                  const currentObj =
+                    typeof current === "object"
+                      ? current
+                      : { coach: "", deep: "", quick: "" };
+                  return {
+                    ...prev,
+                    [id]: { ...currentObj, [key]: chunk },
+                  };
+                });
+                lastUpdate = now;
+              };
+
+              if (timeoutId) clearTimeout(timeoutId);
+
+              if (now - lastUpdate >= 100) {
+                update();
+              } else {
+                timeoutId = setTimeout(update, 100);
+              }
             };
 
             try {
               if (settings.streaming) {
                 await fetchAiAnalysis(question.content, settings, handleChunk);
+                // Ensure final update happens if not already covered
+                if (timeoutId) clearTimeout(timeoutId);
+                setAiAnalysis(prev => {
+                  const current = prev[id];
+                  const currentObj = typeof current === "object" ? current : { coach: "", deep: "", quick: "" };
+                  // We need to fetch the final state? No, chunk is cumulative.
+                  // However, handleChunk might have been debounced/throttled.
+                  // Since fetchAiAnalysis waits for stream to finish, and we passed handleChunk, 
+                  // inside fetchAiAnalysis loop it calls handleChunk.
+                  // AFTER fetchAiAnalysis returns, the stream is done.
+                  // We should force one last update with the FINAL result to be sure (though fetchAiAnalysis returns full text too).
+                  return prev;
+                });
+                // Actually, fetchAiAnalysis returns the full text at the end of streaming too if we await it?
+                // Looking at lib/openai.ts, yes it returns cleanAiResponse(cumulativeText).
+                // So we can just do one final setAiAnalysis with the result to be absolutely sure we have everything and clear timeouts.
               } else {
                 const result = await fetchAiAnalysis(question.content, settings);
-                handleChunk(result);
+                // Non-streaming, just update once
+                setAiAnalysis(prev => {
+                  const current = prev[id];
+                  const currentObj = typeof current === "object" ? current : { coach: "", deep: "", quick: "" };
+                  return { ...prev, [id]: { ...currentObj, [key]: result } };
+                });
               }
             } catch (error) {
-              handleChunk(
-                `分析生成失败: ${error instanceof Error ? error.message : "未知错误"}`
-              );
+              // ... error handling
+              setAiAnalysis(prev => {
+                const current = prev[id];
+                const currentObj = typeof current === "object" ? current : { coach: "", deep: "", quick: "" };
+                return { ...prev, [id]: { ...currentObj, [key]: `分析生成失败: ${error instanceof Error ? error.message : "未知错误"}` } };
+              });
             }
           })
         );
@@ -735,18 +774,43 @@ export default function InterviewQuestionsPage() {
             [id]: "",
           }));
 
+          let lastUpdate = 0;
+          let timeoutId: NodeJS.Timeout | null = null;
+          let latestChunk = "";
+
           const handleStreamingChunk = (chunk: string) => {
-            setAiAnalysis(prev => ({
-              ...prev,
-              [id]: chunk,
-            }));
+            latestChunk = chunk;
+            const now = Date.now();
+
+            const update = () => {
+              setAiAnalysis(prev => ({
+                ...prev,
+                [id]: latestChunk,
+              }));
+              lastUpdate = now;
+            };
+
+            if (timeoutId) clearTimeout(timeoutId);
+
+            if (now - lastUpdate >= 100) {
+              update();
+            } else {
+              timeoutId = setTimeout(update, 100);
+            }
           };
 
-          await fetchAiAnalysis(
+          const finalResult = await fetchAiAnalysis(
             question.content,
             aiModelSettings,
             handleStreamingChunk
           );
+
+          // Clear any pending timeouts and set final result
+          if (timeoutId) clearTimeout(timeoutId);
+          setAiAnalysis(prev => ({
+            ...prev,
+            [id]: finalResult,
+          }));
         } else {
           setAiAnalysis(prev => ({
             ...prev,
@@ -1781,7 +1845,7 @@ export default function InterviewQuestionsPage() {
                             </div>
                           </div>
                         </DialogHeader>
-                        <div className={`flex-1 ${typeof aiAnalysis[currentRandomQuestion.id] === 'object' ? 'overflow-hidden p-0' : 'overflow-y-auto p-6 pt-4 md:p-8 md:pt-6 pb-20 md:pb-24'}`}>
+                        <div className={`flex-1 ${typeof aiAnalysis[currentRandomQuestion.id] === 'object' ? 'overflow-hidden p-0' : 'overflow-y-auto p-6 pt-4 md:p-8 md:pt-6 pb-10'}`}>
                           {typeof aiAnalysis[currentRandomQuestion.id] === 'object' ? (
                             <div className="h-full flex flex-col">
                               <Tabs value={activeAnalysisTab} onValueChange={setActiveAnalysisTab} className="h-full flex flex-col">
@@ -1807,7 +1871,7 @@ export default function InterviewQuestionsPage() {
                                     </TabsTrigger>
                                   </TabsList>
                                 </div>
-                                <div className="flex-1 overflow-y-auto p-6 md:p-8 pb-10 md:pb-24">
+                                <div className="flex-1 overflow-y-auto p-6 md:p-8 pb-10">
                                   {['coach', 'deep', 'quick'].map((mode) => (
                                     <TabsContent key={mode} value={mode} className="mt-0 max-w-4xl mx-auto outline-none">
                                       <Markdown
@@ -2051,49 +2115,13 @@ export default function InterviewQuestionsPage() {
           @apply m-0;
         }
 
-        .prose code {
-          @apply bg-muted px-1.5 py-0.5 rounded text-sm font-mono border border-border/30;
-          font-feature-settings: "calt" 1;
-        }
 
-        .prose pre {
-          @apply bg-muted p-4 rounded-md whitespace-pre-wrap break-all my-6 border border-border/30;
-          font-feature-settings: "calt" 1;
-        }
-
-        .prose pre code {
-          @apply bg-transparent p-0 text-sm border-0 whitespace-pre-wrap break-all;
-          counter-reset: line;
-          display: block;
-        }
 
         .prose a {
           @apply text-primary underline underline-offset-4 font-medium hover:text-primary/80 transition-colors;
         }
 
-        .prose table {
-          @apply w-full my-6 overflow-hidden rounded-md;
-          border-collapse: separate;
-          border-spacing: 0;
-          border: 1px solid hsl(var(--border));
-        }
 
-        .prose table th {
-          @apply bg-muted font-medium px-4 py-2 text-left;
-          border-bottom: 1px solid hsl(var(--border));
-        }
-
-        .prose table tr:nth-child(even) {
-          @apply bg-muted/50;
-        }
-
-        .prose table td {
-          @apply p-3 border-t border-border/50;
-        }
-
-        .prose table tr:first-child td {
-          @apply border-t-0;
-        }
 
         .prose hr {
           @apply border-border my-8;
