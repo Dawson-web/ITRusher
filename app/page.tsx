@@ -1781,7 +1781,7 @@ export default function InterviewQuestionsPage() {
                             </div>
                           </div>
                         </DialogHeader>
-                        <div className={`flex-1 ${typeof aiAnalysis[currentRandomQuestion.id] === 'object' ? 'overflow-hidden p-0' : 'overflow-y-auto p-6 pt-4 md:p-8 md:pt-6 pb-20 md:pb-24'} scroll-smooth transition-all`}>
+                        <div className={`flex-1 ${typeof aiAnalysis[currentRandomQuestion.id] === 'object' ? 'overflow-hidden p-0' : 'overflow-y-auto p-6 pt-4 md:p-8 md:pt-6 pb-20 md:pb-24'}`}>
                           {typeof aiAnalysis[currentRandomQuestion.id] === 'object' ? (
                             <div className="h-full flex flex-col">
                               <Tabs value={activeAnalysisTab} onValueChange={setActiveAnalysisTab} className="h-full flex flex-col">
@@ -1931,8 +1931,9 @@ export default function InterviewQuestionsPage() {
 
         /* Markdown样式 */
         .prose {
-          @apply text-foreground max-w-none;
+          @apply text-foreground max-w-none break-words;
           line-height: 1.75;
+          word-wrap: break-word;
         }
 
         .prose h1,
@@ -2056,12 +2057,12 @@ export default function InterviewQuestionsPage() {
         }
 
         .prose pre {
-          @apply bg-muted p-4 rounded-md overflow-x-auto my-6 border border-border/30;
+          @apply bg-muted p-4 rounded-md whitespace-pre-wrap break-all my-6 border border-border/30;
           font-feature-settings: "calt" 1;
         }
 
         .prose pre code {
-          @apply bg-transparent p-0 text-sm border-0;
+          @apply bg-transparent p-0 text-sm border-0 whitespace-pre-wrap break-all;
           counter-reset: line;
           display: block;
         }
