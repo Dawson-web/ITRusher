@@ -21,7 +21,8 @@ def _build_headers(cookie_override: str | None = None) -> dict:
         "Referer": "https://www.nowcoder.com/",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-        "Accept-Encoding": "gzip, deflate, br",
+        # requests 默认不解 br，避免乱码
+        "Accept-Encoding": "gzip, deflate",
     }
     cookie = (cookie_override or os.getenv("NOWCODER_COOKIE", "")).strip()
     if cookie:
@@ -93,14 +94,18 @@ def crawl_nowcoder_detail(
     if title:
         debug_info["title_from"] = "h1.tw-text-size-title-lg-pure"
     if not title:
-        title = _safe_text(soup, "h1.feed-title, h1.post-title, h1.title")
+        title = _safe_text(soup, "section h1.tw-font-medium") or _safe_text(
+            soup, "h1.feed-title, h1.post-title, h1.title"
+        )
         if title:
             debug_info["title_from"] = "fallback h1"
 
-    content = _safe_text(soup, "div.feed-content-text")
-    if content:
-        debug_info["content_from"] = "div.feed-content-text"
-    if not content:
+    # 内容：优先页面正文，再兜底其它容器
+    content_el = soup.select_one("section .feed-content-text") or soup.select_one("div.feed-content-text")
+    if content_el:
+        content = content_el.get_text(" ", strip=True)
+        debug_info["content_from"] = "feed-content-text"
+    else:
         content = _safe_text(soup, "div.rich-text, article, div.post-content")
         if content:
             debug_info["content_from"] = "fallback rich/article"
@@ -128,7 +133,7 @@ def crawl_nowcoder_detail(
                 break
 
     img_list = []
-    for img in soup.select("img.el-image__inner, .feed-img img"):
+    for img in soup.select("section .feed-img img, img.el-image__inner, .feed-img img"):
         src = (
             img.get("src")
             or img.get("data-src")
