@@ -151,17 +151,34 @@ def crawl_nowcoder_detail(
 def _parse_list_items(soup: BeautifulSoup, base_url: str) -> List[dict]:
     """解析列表页，提取标题/预览/链接等基础字段。"""
     items = []
-    nodes = soup.select("div.tw-px-5.tw-relative.tw-pb-5.tw-cursor-pointer")
+    # 1) 新版搜索/列表页外层容器
+    nodes = soup.select("div.tw-bg-white.tw-mt-3.tw-rounded-xl div.tw-px-5.tw-relative.tw-pb-5.tw-pt-5")
+    # 2) 老版/其他入口容器兜底
     if not nodes:
-        # 兜底：部分页面 class 略有差异
+        nodes = soup.select("div.tw-px-5.tw-relative.tw-pb-5.tw-cursor-pointer")
+    if not nodes:
         nodes = soup.select("div.feed-item, div.feed-main, div.feed-card")
+
     for el in nodes:
-        title = _safe_text(el, ".tw-text-lg.tw-font-bold")
-        preview = _safe_text(el, ".feed-text")
-        link_el = el.select_one("a[href*='/feed/main/detail/']")
+        # 标题：优先 a.dy，再退回到粗体标题
+        title = _safe_text(el, "a.dy") or _safe_text(el, ".tw-text-lg.tw-font-bold")
+        # 列表内容预览
+        preview = _safe_text(el, ".feed-text") or _safe_text(el, ".tw-text-gray-800")
+        # 链接
+        link_el = el.select_one("a.dy[href*='/feed/main/detail/']") or el.select_one(
+            "a[href*='/feed/main/detail/']"
+        )
         link = urljoin(base_url, link_el["href"]) if link_el and link_el.get("href") else ""
+        # 用户名/时间
         username = _safe_text(el, ".user-nickname")
         time_text = _safe_text(el, ".show-time")
+        # 图片列表（列表页也带图时）
+        img_list = []
+        for img in el.select(".feed-img img, .el-image__inner"):
+            src = img.get("src") or img.get("data-src")
+            if src:
+                img_list.append(urljoin(base_url, src))
+
         if title:
             items.append(
                 {
@@ -171,7 +188,7 @@ def _parse_list_items(soup: BeautifulSoup, base_url: str) -> List[dict]:
                     "用户名": username,
                     "发布时间": time_text,
                     "完整内容": "",
-                    "图片列表": [],
+                    "图片列表": img_list,
                 }
             )
     return items
