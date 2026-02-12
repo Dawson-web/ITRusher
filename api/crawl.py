@@ -1,6 +1,7 @@
 # api/crawl.py
 import json
 import os
+import re
 import time
 from http.server import BaseHTTPRequestHandler
 from typing import List, Tuple
@@ -18,6 +19,9 @@ def _build_headers(cookie_override: str | None = None) -> dict:
             "Chrome/120.0.0.0 Safari/537.36"
         ),
         "Referer": "https://www.nowcoder.com/",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br",
     }
     cookie = (cookie_override or os.getenv("NOWCODER_COOKIE", "")).strip()
     if cookie:
@@ -30,7 +34,50 @@ def _safe_text(soup: BeautifulSoup, selector: str) -> str:
     return element.get_text(strip=True) if element else ""
 
 
-def crawl_nowcoder_detail(url: str, cookie_override: str | None = None) -> Tuple[dict, str]:
+def _find_in_json(obj, keys: list[str]) -> str:
+    """在嵌套 JSON 中深度优先查找第一个非空字符串。"""
+    stack = [obj]
+    while stack:
+        cur = stack.pop()
+        if isinstance(cur, dict):
+            for k in keys:
+                if k in cur and isinstance(cur[k], str) and cur[k].strip():
+                    return cur[k].strip()
+            stack.extend(cur.values())
+        elif isinstance(cur, list):
+            stack.extend(cur)
+    return ""
+
+
+def _extract_inline_json(soup: BeautifulSoup) -> list[dict]:
+    """从 script 标签中提取可解析的 JSON（兼容 __NEXT_DATA__ / __NUXT__ / __INITIAL_STATE__）。"""
+    candidates = []
+    for script in soup.find_all("script"):
+        text = script.string or script.text
+        if not text:
+            continue
+        # 直接 JSON
+        if script.get("type") == "application/json" or script.get("id") == "__NEXT_DATA__":
+            try:
+                candidates.append(json.loads(text))
+                continue
+            except Exception:
+                pass
+        # 处理 window.__NUXT__ = {...} 或 window.__INITIAL_STATE__=...
+        match = re.search(r"__NUXT__\\s*=\\s*({.*?})\\s*;?", text, re.S)
+        if not match:
+            match = re.search(r"__INITIAL_STATE__\\s*=\\s*({.*?})\\s*;?", text, re.S)
+        if match:
+            try:
+                candidates.append(json.loads(match.group(1)))
+            except Exception:
+                pass
+    return candidates
+
+
+def crawl_nowcoder_detail(
+    url: str, cookie_override: str | None = None, debug: bool = False
+) -> Tuple[dict, str]:
     """抓取单个牛客帖子详情。"""
     headers = _build_headers(cookie_override)
     resp = requests.get(url, headers=headers, timeout=(5, 10))
@@ -38,12 +85,56 @@ def crawl_nowcoder_detail(url: str, cookie_override: str | None = None) -> Tuple
     resp.encoding = "utf-8"
 
     soup = BeautifulSoup(resp.text, "html.parser")
+
+    debug_info = {}
+
+    # 1) DOM 直接选择
     title = _safe_text(soup, "h1.tw-text-size-title-lg-pure")
+    if title:
+        debug_info["title_from"] = "h1.tw-text-size-title-lg-pure"
+    if not title:
+        title = _safe_text(soup, "h1.feed-title, h1.post-title, h1.title")
+        if title:
+            debug_info["title_from"] = "fallback h1"
+
     content = _safe_text(soup, "div.feed-content-text")
+    if content:
+        debug_info["content_from"] = "div.feed-content-text"
+    if not content:
+        content = _safe_text(soup, "div.rich-text, article, div.post-content")
+        if content:
+            debug_info["content_from"] = "fallback rich/article"
+
+    # 2) 元标签 / JSON 兜底
+    if not title:
+        og = soup.find("meta", property="og:title")
+        if og and og.get("content"):
+            title = og["content"].strip()
+            debug_info["title_from"] = "meta og:title"
+
+    if not content or len(content) < 10:
+        for data_json in _extract_inline_json(soup):
+            content_from_json = _find_in_json(
+                data_json, ["content", "fullContent", "text", "richText", "description"]
+            )
+            title_from_json = _find_in_json(data_json, ["title", "seoTitle"])
+            if content_from_json and len(content_from_json) > len(content):
+                content = content_from_json
+                debug_info["content_from"] = "inline JSON"
+            if not title and title_from_json:
+                title = title_from_json
+                debug_info["title_from"] = "inline JSON"
+            if title and content:
+                break
 
     img_list = []
     for img in soup.select("img.el-image__inner, .feed-img img"):
-        src = img.get("src") or img.get("data-src")
+        src = (
+            img.get("src")
+            or img.get("data-src")
+            or img.get("data-original")
+            or (img.get("data-srcset") or "").split(" ")[0]
+        )
         if src:
             img_list.append(urljoin(url, src))
 
@@ -52,13 +143,19 @@ def crawl_nowcoder_detail(url: str, cookie_override: str | None = None) -> Tuple
         "完整内容": content,
         "图片列表": img_list,
     }
+    if debug:
+        data["_debug"] = debug_info
     return data, "爬取成功"
 
 
 def _parse_list_items(soup: BeautifulSoup, base_url: str) -> List[dict]:
     """解析列表页，提取标题/预览/链接等基础字段。"""
     items = []
-    for el in soup.select("div.tw-px-5.tw-relative.tw-pb-5.tw-cursor-pointer"):
+    nodes = soup.select("div.tw-px-5.tw-relative.tw-pb-5.tw-cursor-pointer")
+    if not nodes:
+        # 兜底：部分页面 class 略有差异
+        nodes = soup.select("div.feed-item, div.feed-main, div.feed-card")
+    for el in nodes:
         title = _safe_text(el, ".tw-text-lg.tw-font-bold")
         preview = _safe_text(el, ".feed-text")
         link_el = el.select_one("a[href*='/feed/main/detail/']")
@@ -86,6 +183,7 @@ def crawl_nowcoder_list(
     with_detail: bool = True,
     delay: float = 0.3,
     cookie_override: str | None = None,
+    debug: bool = False,
 ) -> Tuple[dict, str]:
     """抓取列表页（如搜索页），可选抓详情补全内容/图片。"""
     headers = _build_headers(cookie_override)
@@ -109,9 +207,13 @@ def crawl_nowcoder_list(
             if not link:
                 continue
             try:
-                detail, _ = crawl_nowcoder_detail(link, cookie_override=cookie_override)
+                detail, _ = crawl_nowcoder_detail(
+                    link, cookie_override=cookie_override, debug=debug
+                )
                 item["完整内容"] = detail.get("完整内容", "")
                 item["图片列表"] = detail.get("图片列表", [])
+                if debug and detail.get("_debug"):
+                    item["_debug"] = detail["_debug"]
             except Exception as e:
                 item["完整内容"] = f"详情页爬取失败：{e}"
                 item["图片列表"] = []
@@ -121,7 +223,14 @@ def crawl_nowcoder_list(
     return {"列表": items, "数量": len(items)}, "爬取成功"
 
 
-def handle_crawl(url: str, mode: str, limit: int, with_detail: bool, cookie_override: str | None) -> dict:
+def handle_crawl(
+    url: str,
+    mode: str,
+    limit: int,
+    with_detail: bool,
+    cookie_override: str | None,
+    debug: bool,
+) -> dict:
     try:
         if mode == "list":
             data, msg = crawl_nowcoder_list(
@@ -129,9 +238,10 @@ def handle_crawl(url: str, mode: str, limit: int, with_detail: bool, cookie_over
                 limit=limit,
                 with_detail=with_detail,
                 cookie_override=cookie_override,
+                debug=debug,
             )
         else:
-            data, msg = crawl_nowcoder_detail(url, cookie_override=cookie_override)
+            data, msg = crawl_nowcoder_detail(url, cookie_override=cookie_override, debug=debug)
         return {"code": 200, "data": data, "msg": msg}
     except Exception as e:
         return {"code": 500, "data": {}, "msg": f"爬取失败：{e}"}
@@ -155,6 +265,7 @@ class handler(BaseHTTPRequestHandler):
         target_url = params.get("url", [""])[0].strip()
         mode = params.get("type", [""])[0] or ("list" if "search" in target_url else "detail")
         with_detail = params.get("detail", ["1"])[0] != "0"
+        debug = params.get("debug", ["0"])[0] == "1"
         try:
             limit = int(params.get("limit", ["10"])[0])
         except ValueError:
@@ -167,7 +278,14 @@ class handler(BaseHTTPRequestHandler):
         elif not target_url.startswith("http"):
             result = {"code": 400, "data": {}, "msg": "url 参数必须以 http/https 开头"}
         else:
-            result = handle_crawl(target_url, mode, limit, with_detail, cookie_override if cookie_override else None)
+            result = handle_crawl(
+                target_url,
+                mode,
+                limit,
+                with_detail,
+                cookie_override if cookie_override else None,
+                debug,
+            )
 
         self.send_response(200)
         self.send_header("Content-type", "application/json; charset=utf-8")
