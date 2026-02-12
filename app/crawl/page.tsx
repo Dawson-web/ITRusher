@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useEffect } from "react";
 
 type CrawlResponse = {
   code: number;
@@ -18,9 +19,18 @@ type CrawlResponse = {
 
 export default function CrawlPage() {
   const [url, setUrl] = useState("");
+  const [cookie, setCookie] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CrawlResponse | null>(null);
+
+  // 读取本地存储的 Cookie，避免每次输入
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("nowcoderCookie") || "";
+      setCookie(saved);
+    }
+  }, []);
 
   const handleCrawl = async () => {
     if (!url.trim()) {
@@ -33,7 +43,19 @@ export default function CrawlPage() {
     setResult(null);
 
     try {
-      const res = await fetch(`/api/crawl?url=${encodeURIComponent(url)}`);
+      if (cookie.trim()) {
+        localStorage.setItem("nowcoderCookie", cookie.trim());
+      } else {
+        localStorage.removeItem("nowcoderCookie");
+      }
+
+      const res = await fetch(`/api/crawl?url=${encodeURIComponent(url)}`, {
+        headers: cookie.trim()
+          ? {
+              "X-Nowcoder-Cookie": cookie.trim(),
+            }
+          : undefined,
+      });
       const data = (await res.json()) as CrawlResponse;
       setResult(data);
       if (data.code !== 200) {
@@ -53,18 +75,28 @@ export default function CrawlPage() {
           <CardTitle>牛客帖子爬取 Demo（调用 Vercel /api/crawl）</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex gap-3">
+          <div className="flex flex-col gap-3">
             <Input
-              placeholder="请输入牛客帖子链接，如 https://www.nowcoder.com/feed/main/detail/123"
+              placeholder="请输入牛客帖子或搜索页链接，如 https://www.nowcoder.com/feed/main/detail/123"
               value={url}
               onChange={e => setUrl(e.target.value)}
               onKeyDown={e => {
                 if (e.key === "Enter") handleCrawl();
               }}
             />
-            <Button onClick={handleCrawl} disabled={loading}>
-              {loading ? "爬取中..." : "开始爬取"}
-            </Button>
+            <Input
+              placeholder="可选：粘贴你的牛客 Cookie，便于访问需登录的帖子（仅保存在本地）"
+              value={cookie}
+              onChange={e => setCookie(e.target.value)}
+            />
+            <div className="flex items-center gap-3">
+              <Button onClick={handleCrawl} disabled={loading}>
+                {loading ? "爬取中..." : "开始爬取"}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Cookie 会存到 localStorage，并通过请求头 X-Nowcoder-Cookie 发送到 /api/crawl
+              </p>
+            </div>
           </div>
           {error && (
             <p className="text-sm text-red-500" role="alert">

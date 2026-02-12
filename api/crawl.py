@@ -10,7 +10,7 @@ import requests
 from bs4 import BeautifulSoup
 
 # 统一请求头 & 可选 Cookie
-def _build_headers() -> dict:
+def _build_headers(cookie_override: str | None = None) -> dict:
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -19,7 +19,7 @@ def _build_headers() -> dict:
         ),
         "Referer": "https://www.nowcoder.com/",
     }
-    cookie = os.getenv("NOWCODER_COOKIE", "").strip()
+    cookie = (cookie_override or os.getenv("NOWCODER_COOKIE", "")).strip()
     if cookie:
         headers["Cookie"] = cookie
     return headers
@@ -30,9 +30,9 @@ def _safe_text(soup: BeautifulSoup, selector: str) -> str:
     return element.get_text(strip=True) if element else ""
 
 
-def crawl_nowcoder_detail(url: str) -> Tuple[dict, str]:
+def crawl_nowcoder_detail(url: str, cookie_override: str | None = None) -> Tuple[dict, str]:
     """抓取单个牛客帖子详情。"""
-    headers = _build_headers()
+    headers = _build_headers(cookie_override)
     resp = requests.get(url, headers=headers, timeout=(5, 10))
     resp.raise_for_status()
     resp.encoding = "utf-8"
@@ -80,9 +80,15 @@ def _parse_list_items(soup: BeautifulSoup, base_url: str) -> List[dict]:
     return items
 
 
-def crawl_nowcoder_list(url: str, limit: int = 10, with_detail: bool = True, delay: float = 0.3) -> Tuple[dict, str]:
+def crawl_nowcoder_list(
+    url: str,
+    limit: int = 10,
+    with_detail: bool = True,
+    delay: float = 0.3,
+    cookie_override: str | None = None,
+) -> Tuple[dict, str]:
     """抓取列表页（如搜索页），可选抓详情补全内容/图片。"""
-    headers = _build_headers()
+    headers = _build_headers(cookie_override)
     resp = requests.get(url, headers=headers, timeout=(5, 10))
     resp.raise_for_status()
     resp.encoding = "utf-8"
@@ -103,7 +109,7 @@ def crawl_nowcoder_list(url: str, limit: int = 10, with_detail: bool = True, del
             if not link:
                 continue
             try:
-                detail, _ = crawl_nowcoder_detail(link)
+                detail, _ = crawl_nowcoder_detail(link, cookie_override=cookie_override)
                 item["完整内容"] = detail.get("完整内容", "")
                 item["图片列表"] = detail.get("图片列表", [])
             except Exception as e:
@@ -115,12 +121,17 @@ def crawl_nowcoder_list(url: str, limit: int = 10, with_detail: bool = True, del
     return {"列表": items, "数量": len(items)}, "爬取成功"
 
 
-def handle_crawl(url: str, mode: str, limit: int, with_detail: bool) -> dict:
+def handle_crawl(url: str, mode: str, limit: int, with_detail: bool, cookie_override: str | None) -> dict:
     try:
         if mode == "list":
-            data, msg = crawl_nowcoder_list(url, limit=limit, with_detail=with_detail)
+            data, msg = crawl_nowcoder_list(
+                url,
+                limit=limit,
+                with_detail=with_detail,
+                cookie_override=cookie_override,
+            )
         else:
-            data, msg = crawl_nowcoder_detail(url)
+            data, msg = crawl_nowcoder_detail(url, cookie_override=cookie_override)
         return {"code": 200, "data": data, "msg": msg}
     except Exception as e:
         return {"code": 500, "data": {}, "msg": f"爬取失败：{e}"}
@@ -131,7 +142,7 @@ class handler(BaseHTTPRequestHandler):
     def _set_cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Nowcoder-Cookie")
 
     def do_OPTIONS(self):
         self.send_response(204)
@@ -148,13 +159,15 @@ class handler(BaseHTTPRequestHandler):
             limit = int(params.get("limit", ["10"])[0])
         except ValueError:
             limit = 10
+        # 允许通过自定义头或 query 传入 Cookie，方便前端 localStorage 管理
+        cookie_override = (self.headers.get("X-Nowcoder-Cookie") or params.get("cookie", [""])[0]).strip()
 
         if not target_url:
             result = {"code": 400, "data": {}, "msg": "请传入爬取链接（?url=牛客帖子/搜索页链接）"}
         elif not target_url.startswith("http"):
             result = {"code": 400, "data": {}, "msg": "url 参数必须以 http/https 开头"}
         else:
-            result = handle_crawl(target_url, mode, limit, with_detail)
+            result = handle_crawl(target_url, mode, limit, with_detail, cookie_override if cookie_override else None)
 
         self.send_response(200)
         self.send_header("Content-type", "application/json; charset=utf-8")
