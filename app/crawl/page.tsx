@@ -37,7 +37,7 @@ type CrawlResponse =
   };
 
 export default function CrawlPage() {
-  const [url, setUrl] = useState("");
+  const [input, setInput] = useState("");
   const [cookie, setCookie] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,8 +52,8 @@ export default function CrawlPage() {
   }, []);
 
   const handleCrawl = async () => {
-    if (!url.trim()) {
-      setError("请先输入牛客帖子链接");
+    if (!input.trim()) {
+      setError("请先输入关键词或链接");
       return;
     }
 
@@ -68,11 +68,16 @@ export default function CrawlPage() {
         localStorage.removeItem("nowcoderCookie");
       }
 
-      const res = await fetch(`https://it-rusher.vercel.app/api/crawl?url=${encodeURIComponent(url)}`, {
+      const isUrl = input.startsWith("http");
+      const searchParams = isUrl
+        ? `url=${encodeURIComponent(input)}`
+        : `query=${encodeURIComponent(input)}&type=list`;
+
+      const res = await fetch(`/api/crawl?${searchParams}`, {
         headers: cookie.trim()
           ? {
-            "X-Nowcoder-Cookie": cookie.trim(),
-          }
+              "X-Nowcoder-Cookie": cookie.trim(),
+            }
           : undefined,
       });
       const data = (await res.json()) as CrawlResponse;
@@ -96,9 +101,9 @@ export default function CrawlPage() {
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-3">
             <Input
-              placeholder="请输入牛客帖子或搜索页链接，如 https://www.nowcoder.com/feed/main/detail/123"
-              value={url}
-              onChange={e => setUrl(e.target.value)}
+              placeholder="输入关键词（如：腾讯 前端 面经）或粘贴牛客链接"
+              value={input}
+              onChange={e => setInput(e.target.value)}
               onKeyDown={e => {
                 if (e.key === "Enter") handleCrawl();
               }}

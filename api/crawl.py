@@ -3,9 +3,10 @@ import json
 import os
 import re
 import time
+from datetime import datetime, timezone, timedelta
 from http.server import BaseHTTPRequestHandler
 from typing import List, Tuple
-from urllib.parse import parse_qs, urljoin, urlparse
+from urllib.parse import parse_qs, urlencode, urljoin, urlparse, urlunparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -74,6 +75,194 @@ def _extract_inline_json(soup: BeautifulSoup) -> list[dict]:
             except Exception:
                 pass
     return candidates
+
+
+def _set_page_param(raw_url: str, page: int) -> str:
+    """在 URL 中注入或替换分页参数，适配常见键 page/pageNum/pn/curPage。"""
+    if page <= 0:
+        return raw_url
+    parsed = urlparse(raw_url)
+    q = parse_qs(parsed.query)
+    for key in ["page", "pageNum", "pn", "curPage"]:
+        q[key] = [str(page)]
+    new_query = urlencode(q, doseq=True)
+    return urlunparse(
+        (
+            parsed.scheme,
+            parsed.netloc,
+            parsed.path,
+            parsed.params,
+            new_query,
+            parsed.fragment,
+        )
+    )
+
+
+def _extract_keyword_from_url(raw_url: str) -> str:
+    """从搜索页 URL 中提取 query 关键词。"""
+    parsed = urlparse(raw_url)
+    qs = parse_qs(parsed.query)
+    return qs.get("query", [""])[0].strip()
+
+
+def _fmt_time(ts_ms: int | None) -> str:
+    """时间戳毫秒转 MM-DD HH:MM（北京时区），缺失则空字符串。"""
+    if not ts_ms:
+        return ""
+    try:
+        dt = datetime.fromtimestamp(ts_ms / 1000, tz=timezone(timedelta(hours=8)))
+        return dt.strftime("%m-%d %H:%M")
+    except Exception:
+        return ""
+
+
+def _extract_text_nodes(node: dict | list | None) -> str:
+    """解析 newTitle/newContent 的 data 节点数组为纯文本。"""
+    if not node:
+        return ""
+    if isinstance(node, dict):
+        arr = node.get("data", [])
+    else:
+        arr = node
+    parts = []
+    for item in arr:
+        if isinstance(item, dict) and item.get("text"):
+            parts.append(str(item["text"]))
+    return " ".join(parts).strip()
+
+
+def _fetch_search_api(keyword: str, page: int, size: int, cookie_override: str | None = None) -> dict:
+    """直接调用牛客官方搜索接口，返回原始 JSON。"""
+    api_url = "https://gw-c.nowcoder.com/api/sparta/pc/search"
+    headers = _build_headers(cookie_override)
+    headers.update(
+        {
+            "Origin": "https://www.nowcoder.com",
+            "Referer": "https://www.nowcoder.com/",
+            "Content-Type": "application/json;charset=UTF-8",
+            "X-Requested-With": "XMLHttpRequest",
+        }
+    )
+    payload = {
+        "type": "all",
+        "query": keyword,
+        "page": page,
+        "size": size,
+        "tag": [],
+        "order": "",
+        # gioParams 非必填，接口容忍缺失；如需可透传
+    }
+    resp = requests.post(api_url, headers=headers, json=payload, timeout=(5, 10))
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _normalize_record(rec: dict) -> dict:
+    """将接口 record 统一映射到前端使用的字段结构。"""
+    data = rec.get("data", {}) if isinstance(rec, dict) else {}
+    user = data.get("userBrief", {}) or {}
+    moment = data.get("momentData") or {}
+    content_data = data.get("contentData") or {}
+
+    # 标题
+    title = (
+        _extract_text_nodes(moment.get("newTitle"))
+        or moment.get("title")
+        or _extract_text_nodes(content_data.get("newTitle"))
+        or content_data.get("title")
+        or rec.get("title")
+        or ""
+    )
+    # 预览内容
+    preview = (
+        _extract_text_nodes(moment.get("newContent"))
+        or moment.get("content")
+        or _extract_text_nodes(content_data.get("newContent"))
+        or content_data.get("content")
+        or ""
+    )
+
+    # 链接：动态/面经用 uuid，帖子用 contentId
+    link = ""
+    uuid = moment.get("uuid")
+    content_id = content_data.get("id") or moment.get("id") or moment.get("contentId")
+    if uuid:
+        link = f"https://www.nowcoder.com/feed/main/detail/{uuid}?source=search"
+    elif content_id:
+        # 讨论帖路径
+        link = f"https://www.nowcoder.com/discuss/{content_id}?source=search"
+
+    # 图片（仅取封面列表）
+    imgs = []
+    for img_block in (moment.get("imgMoment") or content_data.get("contentImageUrls") or []):
+        if isinstance(img_block, dict):
+            src = img_block.get("src") or img_block.get("url")
+            if src:
+                imgs.append(src)
+
+    pub_ts = moment.get("showTime") or moment.get("createdAt") or content_data.get("showTime") or content_data.get(
+        "createTime"
+    )
+
+    return {
+        "标题": title.strip(),
+        "内容预览": preview.strip(),
+        "链接": link,
+        "用户名": user.get("nickname") or "",
+        "发布时间": _fmt_time(pub_ts),
+        "完整内容": "",  # 如需详情可再抓
+        "图片列表": imgs,
+    }
+
+
+def crawl_nowcoder_search_api(
+    keyword: str,
+    page: int = 1,
+    pages: int = 1,
+    size: int = 20,
+    with_detail: bool = False,
+    cookie_override: str | None = None,
+    debug: bool = False,
+) -> Tuple[dict, str]:
+    """通过官方搜索接口跨页抓取。"""
+    all_items: list[dict] = []
+    cur = max(1, page)
+    pages = max(1, pages)
+    last_msg = ""
+    for p in range(cur, cur + pages):
+        raw = _fetch_search_api(keyword, p, size, cookie_override)
+        if not raw.get("success", False):
+            return {"列表": all_items}, raw.get("msg", "接口返回错误")
+        data = raw.get("data", {}) or {}
+        records = data.get("records") or []
+        normalized = [_normalize_record(r) for r in records]
+        all_items.extend(normalized)
+        last_msg = raw.get("msg", "爬取成功")
+        # 是否还有下一页
+        total_page = data.get("totalPage") or 0
+        if p >= total_page:
+            break
+        # 若本页空也提前结束
+        if not records:
+            break
+    # 可选补详情
+    if with_detail:
+        for idx, item in enumerate(all_items):
+            link = item.get("链接")
+            if not link:
+                continue
+            try:
+                detail, _ = crawl_nowcoder_detail(link, cookie_override=cookie_override, debug=debug)
+                item["完整内容"] = detail.get("完整内容", "")
+                item["图片列表"] = detail.get("图片列表", item.get("图片列表", []))
+                if debug and detail.get("_debug"):
+                    item["_debug"] = detail["_debug"]
+            except Exception as e:
+                item["完整内容"] = f"详情页爬取失败：{e}"
+            if idx < len(all_items) - 1:
+                time.sleep(0.2)
+
+    return {"列表": all_items, "数量": len(all_items)}, last_msg or "爬取成功"
 
 
 def crawl_nowcoder_detail(
@@ -206,15 +395,17 @@ def crawl_nowcoder_list(
     delay: float = 0.3,
     cookie_override: str | None = None,
     debug: bool = False,
+    page: int | None = None,
 ) -> Tuple[dict, str]:
-    """抓取列表页（如搜索页），可选抓详情补全内容/图片。"""
+    """抓取列表页（如搜索页），可选抓详情补全内容/图片。基于 HTML 解析。"""
     headers = _build_headers(cookie_override)
-    resp = requests.get(url, headers=headers, timeout=(5, 10))
+    target_url = _set_page_param(url, page) if page else url
+    resp = requests.get(target_url, headers=headers, timeout=(5, 10))
     resp.raise_for_status()
     resp.encoding = "utf-8"
 
     soup = BeautifulSoup(resp.text, "html.parser")
-    base_url = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
+    base_url = f"{urlparse(target_url).scheme}://{urlparse(target_url).netloc}"
     items = _parse_list_items(soup, base_url)
 
     if not items:
@@ -252,16 +443,50 @@ def handle_crawl(
     with_detail: bool,
     cookie_override: str | None,
     debug: bool,
+    start_page: int,
+    pages: int,
+    keyword: str = "",
 ) -> dict:
     try:
         if mode == "list":
-            data, msg = crawl_nowcoder_list(
-                url,
-                limit=limit,
-                with_detail=with_detail,
-                cookie_override=cookie_override,
-                debug=debug,
-            )
+            keyword = keyword.strip()
+            use_api = (
+                ("gw-c.nowcoder.com/api/sparta/pc/search" in url) if url else False
+            ) or bool(keyword) or (url and url.endswith("/api/sparta/pc/search"))
+
+            if use_api:
+                data, msg = crawl_nowcoder_search_api(
+                    keyword=keyword or _extract_keyword_from_url(url) or "",
+                    page=start_page,
+                    pages=pages,
+                    size=max(1, min(limit, 50)),
+                    with_detail=with_detail,
+                    cookie_override=cookie_override,
+                    debug=debug,
+                )
+            else:
+                all_items: list[dict] = []
+                current_page = max(1, start_page)
+                total_pages = max(1, pages)
+                last_msg = ""
+                for i in range(current_page, current_page + total_pages):
+                    data_page, msg = crawl_nowcoder_list(
+                        url,
+                        limit=limit,
+                        with_detail=with_detail,
+                        cookie_override=cookie_override,
+                        debug=debug,
+                        page=i,
+                    )
+                    last_msg = msg
+                    items = data_page.get("列表", [])
+                    all_items.extend(items)
+                    if not items:
+                        break
+                    if len(all_items) >= limit * total_pages:
+                        break
+                data = {"列表": all_items, "数量": len(all_items)}
+                msg = last_msg or "爬取成功"
         else:
             data, msg = crawl_nowcoder_detail(url, cookie_override=cookie_override, debug=debug)
         return {"code": 200, "data": data, "msg": msg}
@@ -285,9 +510,18 @@ class handler(BaseHTTPRequestHandler):
         query = urlparse(self.path).query
         params = parse_qs(query)
         target_url = params.get("url", [""])[0].strip()
-        mode = params.get("type", [""])[0] or ("list" if "search" in target_url else "detail")
+        keyword = params.get("query", [""])[0].strip() or params.get("q", [""])[0].strip()
+        mode = params.get("type", [""])[0] or ("list" if (keyword or "search" in target_url) else "detail")
         with_detail = params.get("detail", ["1"])[0] != "0"
         debug = params.get("debug", ["0"])[0] == "1"
+        try:
+            start_page = int(params.get("page", ["1"])[0])
+        except ValueError:
+            start_page = 1
+        try:
+            pages = int(params.get("pages", ["1"])[0])
+        except ValueError:
+            pages = 1
         try:
             limit = int(params.get("limit", ["10"])[0])
         except ValueError:
@@ -295,9 +529,9 @@ class handler(BaseHTTPRequestHandler):
         # 允许通过自定义头或 query 传入 Cookie，方便前端 localStorage 管理
         cookie_override = (self.headers.get("X-Nowcoder-Cookie") or params.get("cookie", [""])[0]).strip()
 
-        if not target_url:
-            result = {"code": 400, "data": {}, "msg": "请传入爬取链接（?url=牛客帖子/搜索页链接）"}
-        elif not target_url.startswith("http"):
+        if not target_url and not keyword:
+            result = {"code": 400, "data": {}, "msg": "请传入关键词(query=) 或 链接(url=)"}
+        elif target_url and not target_url.startswith("http"):
             result = {"code": 400, "data": {}, "msg": "url 参数必须以 http/https 开头"}
         else:
             result = handle_crawl(
@@ -307,6 +541,9 @@ class handler(BaseHTTPRequestHandler):
                 with_detail,
                 cookie_override if cookie_override else None,
                 debug,
+                start_page,
+                pages,
+                keyword,
             )
 
         self.send_response(200)
